@@ -37,6 +37,7 @@ import {
   settingsHash,
 } from '../js/router.js';
 import { createUi } from '../js/ui.js';
+import { CORRECT_DELAY, MAX_MISSES, TAP_GUARD, WRONG_DELAY, roundLoop } from '../js/lib/roundLoop.js';
 import { boot } from '../js/app.js';
 
 /** Run `fn` with `console.warn` muted; storage warns on purpose for the blob cases. */
@@ -839,6 +840,12 @@ function fakeDocument() {
       },
       removeAttribute(name) {
         delete node.attributes[name];
+      },
+      // Recorded, not performed: "every ask re-focuses the prompt with preventScroll" is a
+      // claim about calls, and a fake that silently swallowed them could not check it.
+      focus(options) {
+        node.focusCalls = (node.focusCalls ?? 0) + 1;
+        node.focusedWith = options;
       },
       addEventListener(type, listener) {
         (listeners[type] ??= []).push(listener);
@@ -1676,6 +1683,388 @@ test('boot starts without a service worker, and a refused registration is only a
   } finally {
     console.warn = warn;
   }
+});
+
+// ------------------------------------------------------------- the round loop (js/lib/roundLoop.js)
+
+/** One four-option question, the way a choice Game builds it. @param {number} n */
+const choiceQuestion = (n) => ({
+  prompt: `prompt ${n}`,
+  answer: `answer ${n}`,
+  options: [`wrong a ${n}`, `answer ${n}`, `wrong b ${n}`, `wrong c ${n}`],
+});
+
+/**
+ * The round loop's delays, made deterministic: a controllable clock and a queue of timers, so a
+ * case asserts the exact 700 / 1400 / 250 ms and fires only what the loop actually scheduled.
+ */
+function fakeClock() {
+  let id = 0;
+  let time = 0;
+  /** @type {Map<number, { fn: () => void, ms: number, at: number }>} */
+  const timers = new Map();
+  return {
+    now: () => time,
+    /** Move the clock by `ms` and run every timer that is now due. */
+    /** @param {number} ms */
+    tick(ms) {
+      time += ms;
+      for (const [key, entry] of [...timers]) {
+        if (entry.at <= time) {
+          timers.delete(key);
+          entry.fn();
+        }
+      }
+    },
+    /** @param {() => void} fn @param {number} ms */
+    setTimeout: (fn, ms) => {
+      id += 1;
+      timers.set(id, { fn, ms, at: time + ms });
+      return id;
+    },
+    /** @param {number} key */
+    clearTimeout: (key) => {
+      timers.delete(key);
+    },
+    delays: () => [...timers.values()].map((entry) => entry.ms),
+    pending: () => timers.size,
+  };
+}
+
+/**
+ * A real `roundLoop()` over the fake document, the fake clock and a state log — the seam that
+ * makes the cycle's DOM, its counters and its three timings checkable in Node. A Game's own
+ * answers/actions are passed through `extra`.
+ *
+ * @param {{
+ *   mode?: 'choice' | 'reveal',
+ *   queue?: Array<{ prompt: string, answer: string, options?: string[] }>,
+ *   extra?: Record<string, unknown>,
+ * }} [options]
+ */
+function roundHarness(options = {}) {
+  const doc = fakeDocument();
+  const root = doc.createElement('div');
+  const clock = fakeClock();
+  /** @type {string[]} */
+  const states = [];
+  /** @type {Array<{ prompt: string, correct: boolean }>} */
+  const answers = [];
+  /** @type {Array<Array<{ prompt: string, answer: string, options?: string[] }>>} */
+  const draws = [];
+  const loop = roundLoop(root, {
+    mode: options.mode ?? 'choice',
+    // A fresh array of fresh questions every draw: "Play again samples a new queue" is then
+    // something a case can see rather than assume.
+    sample: () => {
+      const queue = (options.queue ?? []).map((question) => ({ ...question }));
+      draws.push(queue);
+      return queue;
+    },
+    document: doc,
+    setTimeout: clock.setTimeout,
+    clearTimeout: clock.clearTimeout,
+    now: clock.now,
+    onState: (state) => states.push(state),
+    onAnswer: (question, correct) => {
+      answers.push({ prompt: question.prompt, correct });
+      return correct ? 10 : 0;
+    },
+    ...(options.extra ?? {}),
+  });
+  return { doc, root, clock, states, answers, draws, loop, section: loop.section };
+}
+
+/** The loop's live nodes, in one place. @param {any} root */
+function roundNodes(root) {
+  const section = byClass(root, 'round')[0];
+  const bar = section.children[0];
+  const summary = section.children[5];
+  return {
+    section,
+    bar,
+    meter: bar.children[0].children[0],
+    ordinal: bar.children[1],
+    prompt: section.children[1],
+    status: section.children[2],
+    options: section.children[3],
+    buttons: nodesOf(section).filter(
+      (node) => node.tagName === 'BUTTON' && node.className.startsWith('opt'),
+    ),
+    actions: section.children[4],
+    summary,
+    score: byClass(summary, 'score')[0],
+    points: byClass(summary, 'points')[0],
+    misses: byClass(summary, 'misses')[0],
+    slots: byClass(summary, 'miss'),
+    summaryActions: byClass(summary, 'actions')[0],
+    playAgain: byClass(summary, 'start')[0],
+    grades: nodesOf(section).filter(
+      (node) => node.tagName === 'BUTTON' && node.className.startsWith('grade'),
+    ),
+    done: byTag(summary, 'a')[0],
+  };
+}
+
+test('the round loop counts against the actual queue length and reuses its one DOM', () => {
+  const h = roundHarness({ queue: [1, 2, 3, 4, 5].map(choiceQuestion) });
+  const n = roundNodes(h.root);
+
+  assert.equal(h.root.children.length, 1, 'the loop owns one section in the node it was handed');
+  assert.equal(n.section.getAttribute('data-state'), 'ask');
+  assert.equal(n.section.getAttribute('aria-labelledby'), 'prompt');
+  assert.equal(n.ordinal.textContent, '1/5');
+  assert.equal(n.meter.getAttribute('style'), 'width:20%');
+  assert.equal(n.prompt.tagName, 'H1');
+  assert.equal(n.prompt.tabIndex, -1, 'the prompt is focusable, which is how each ask is announced');
+  assert.deepEqual(n.prompt.focusedWith, { preventScroll: true });
+  assert.equal(n.status.getAttribute('aria-live'), 'polite');
+  assert.equal(n.options.getAttribute('role'), 'group');
+  assert.equal(n.options.getAttribute('aria-labelledby'), 'prompt');
+  assert.equal(n.buttons.length, 4, 'four option rows exist before the first question is read');
+  assert.deepEqual(n.buttons.map((button) => button.textContent), ['wrong a 1', 'answer 1', 'wrong b 1', 'wrong c 1']);
+  assert.ok(n.buttons.every((button) => button.tagName === 'BUTTON'));
+
+  n.buttons[1].fire('click');
+  h.clock.tick(CORRECT_DELAY);
+  const next = roundNodes(h.root);
+  assert.equal(next.prompt, n.prompt, 'the prompt node is reused, never re-mounted');
+  assert.equal(next.ordinal, n.ordinal);
+  assert.deepEqual(next.buttons, n.buttons, 'the option buttons are the same nodes');
+  assert.equal(next.prompt.focusCalls, 2, 'each ask re-focuses the prompt');
+  assert.equal(h.root.children.length, 1, 'no question ever re-mounts the section');
+  assert.equal(next.ordinal.textContent, '2/5', 'the ordinal is the queue position, not a round length wish');
+  assert.equal(next.meter.getAttribute('style'), 'width:40%');
+  assert.deepEqual(h.states, ['ask', 'feedback', 'advance', 'ask']);
+});
+
+test('choice feedback reveals the answer, times the advance and swallows the answering tap', () => {
+  const h = roundHarness({ queue: [choiceQuestion(1), choiceQuestion(2)] });
+  const n = roundNodes(h.root);
+
+  n.buttons[0].fire('click');
+  assert.equal(n.section.getAttribute('data-state'), 'feedback');
+  assert.equal(n.status.textContent, 'giusto: answer 1');
+  assert.equal(n.buttons[0].className, 'opt wrong');
+  assert.equal(n.buttons[1].className, 'opt correct', 'the correct option is always revealed');
+  assert.equal(n.buttons[2].className, 'opt');
+  assert.deepEqual(h.answers, [{ prompt: 'prompt 1', correct: false }], 'the attempt is recorded at once');
+  assert.deepEqual(h.clock.delays(), [WRONG_DELAY]);
+
+  // The answering tap bubbles into the section within the guard and must not advance.
+  n.section.fire('click');
+  assert.equal(n.section.getAttribute('data-state'), 'feedback');
+  h.clock.tick(100);
+  n.section.fire('click');
+  assert.equal(n.section.getAttribute('data-state'), 'feedback', 'a tap inside the 250 ms guard is ignored');
+  h.clock.tick(TAP_GUARD - 100);
+  n.section.fire('click');
+  assert.equal(n.section.getAttribute('data-state'), 'ask', 'a tap after the guard advances');
+  assert.equal(h.clock.pending(), 0, 'advancing cancels the auto-advance it replaced');
+  assert.equal(n.prompt.textContent, 'prompt 2');
+  assert.equal(n.buttons[0].className, 'opt', 'a new question clears the old marks');
+  assert.equal(n.status.textContent, '', 'and the old feedback copy');
+
+  n.buttons[1].fire('click');
+  assert.equal(n.status.textContent, 'corretto');
+  assert.deepEqual(h.clock.delays(), [CORRECT_DELAY]);
+  h.clock.tick(CORRECT_DELAY);
+
+  assert.equal(n.section.getAttribute('data-state'), 'summary');
+  assert.equal(n.score.textContent, '1/2', 'the score counts the actual queue');
+  assert.equal(n.points.textContent, '+10 pt');
+  assert.deepEqual(h.states, ['ask', 'feedback', 'advance', 'ask', 'feedback', 'advance', 'summary']);
+});
+
+test('reveal mode offers one Show answer, waits to be graded and never shows red', () => {
+  const h = roundHarness({
+    mode: 'reveal',
+    queue: [
+      { prompt: 'cercare · tu · presente', answer: 'cerchi' },
+      { prompt: 'cercare · io · presente', answer: 'cerco' },
+    ],
+  });
+  const n = roundNodes(h.root);
+  const [showAnswer, gradeRight, gradeWrong] = n.grades;
+
+  assert.equal(n.section.getAttribute('data-state'), 'ask');
+  assert.equal(n.options.hidden, true, 'a reveal question has no option buttons to tap');
+  assert.equal(n.actions.hidden, false);
+  assert.equal(n.grades.length, 3);
+  assert.equal(showAnswer.textContent, 'Show answer');
+  assert.equal(showAnswer.className, 'grade wide', 'one full-width action');
+  assert.equal(showAnswer.hidden, false);
+  assert.equal(gradeRight.hidden, true, 'the grades only exist after the reveal');
+  assert.equal(gradeWrong.hidden, true);
+  assert.equal(h.clock.pending(), 0, 'asking a reveal question schedules nothing');
+
+  showAnswer.fire('click');
+  assert.equal(n.section.getAttribute('data-state'), 'selfGrade');
+  assert.equal(n.status.textContent, 'cerchi', 'the answer lands in the polite status line, in green');
+  assert.equal(gradeRight.hidden, false);
+  assert.equal(gradeWrong.hidden, false);
+  assert.equal(h.clock.pending(), 0, 'grading is deliberate: no auto-advance');
+  assert.equal(byClass(n.section, 'wrong').length, 0);
+
+  gradeWrong.fire('click');
+  assert.equal(n.section.getAttribute('data-grade'), 'bad');
+  assert.equal(n.status.textContent, 'da rivedere');
+  assert.equal(byClass(n.section, 'wrong').length, 0, 'nothing is ever coloured red in reveal mode');
+  assert.equal(byClass(n.section, 'grade ok').length, 0);
+  assert.deepEqual(h.answers, [{ prompt: 'cercare · tu · presente', correct: false }]);
+  assert.deepEqual(h.clock.delays(), [250]);
+  h.clock.tick(250);
+  assert.equal(n.section.getAttribute('data-state'), 'ask');
+  assert.equal(n.prompt.textContent, 'cercare · io · presente');
+
+  showAnswer.fire('click');
+  gradeRight.fire('click');
+  assert.equal(n.status.textContent, 'corretto');
+  assert.equal(gradeRight.getAttribute('aria-pressed'), 'true');
+  h.clock.tick(250);
+  assert.equal(gradeRight.getAttribute('aria-pressed'), 'false', 'the next question resets the grades');
+  assert.equal(gradeWrong.getAttribute('aria-pressed'), 'false');
+  assert.equal(n.section.getAttribute('data-state'), 'summary');
+  assert.equal(n.score.textContent, '1/2');
+  assert.deepEqual(h.states, [
+    'ask',
+    'selfGrade',
+    'advance',
+    'ask',
+    'selfGrade',
+    'advance',
+    'summary',
+  ]);
+});
+
+test('the summary reports the queue, the points and at most three misses, and Play again re-draws', () => {
+  const h = roundHarness({ queue: [1, 2, 3, 4, 5].map(choiceQuestion) });
+  const n = roundNodes(h.root);
+
+  // Four wrong, then one right: one point total, and the fourth miss is never listed.
+  /** @param {number} option */
+  const answer = (option) => {
+    roundNodes(h.root).buttons[option].fire('click');
+    h.clock.tick(WRONG_DELAY);
+  };
+  [0, 0, 0, 0, 1].forEach(answer);
+
+  assert.equal(n.section.getAttribute('data-state'), 'summary');
+  assert.equal(n.score.textContent, '1/5');
+  assert.equal(n.points.textContent, '+10 pt');
+  assert.equal(n.bar.hidden, true);
+  assert.equal(n.prompt.hidden, true);
+  assert.equal(n.status.hidden, true);
+  assert.equal(n.summary.hidden, false);
+  assert.equal(n.slots.length, MAX_MISSES);
+  assert.deepEqual(n.slots.map((slot) => slot.textContent), ['prompt 1', 'prompt 2', 'prompt 3']);
+  assert.ok(n.slots.every((slot) => slot.hidden === false));
+  assert.equal(n.playAgain.textContent, 'Play again');
+  assert.equal(n.done.textContent, 'Done');
+  assert.equal(n.done.getAttribute('href'), HUB_HASH, 'Done routes to the hub through the router');
+  assert.deepEqual(n.summaryActions.children, [n.playAgain, n.done]);
+
+  n.playAgain.fire('click');
+  assert.equal(h.draws.length, 2, 'Play again samples a new queue');
+  assert.notEqual(h.draws[1], h.draws[0]);
+  assert.equal(n.section.getAttribute('data-state'), 'ask');
+  assert.equal(n.summary.hidden, true);
+  assert.equal(n.ordinal.textContent, '1/5');
+  assert.equal(n.status.textContent, '');
+  assert.equal(n.prompt.textContent, 'prompt 1');
+  assert.equal(h.states.at(-1), 'ask');
+});
+
+test('a Game appends its own summary action beside Play again and Done', () => {
+  /** @type {any} */
+  let statistics = null;
+  const h = roundHarness({
+    queue: [],
+    extra: {
+      summaryActions: (/** @type {any} */ container) => {
+        statistics = { tagName: 'BUTTON', className: 'text-btn', textContent: 'Statistics', children: [] };
+        container.append(statistics);
+      },
+    },
+  });
+  const n = roundNodes(h.root);
+
+  assert.deepEqual(
+    n.summaryActions.children.map((child) => child.textContent),
+    ['Play again', 'Statistics', 'Done'],
+    'a Game-owned action sits between the two host controls',
+  );
+  assert.equal(statistics.textContent, 'Statistics');
+});
+
+test('leaving a round early keeps the answers and never shows a summary', () => {
+  const h = roundHarness({ queue: [1, 2, 3].map(choiceQuestion) });
+  const n = roundNodes(h.root);
+
+  assert.deepEqual(byTag(n.section, 'a'), [n.done], 'the loop draws no quit control — the host owns that');
+  n.buttons[1].fire('click');
+  assert.deepEqual(h.answers, [{ prompt: 'prompt 1', correct: true }], 'written on the spot, not at the end');
+  h.clock.tick(TAP_GUARD);
+  assert.equal(h.clock.pending(), 1, 'the auto-advance is still waiting');
+  const before = [...h.states];
+
+  h.loop.teardown();
+  h.loop.teardown();
+  assert.equal(h.clock.pending(), 0, 'an exiting round cancels its pending advance');
+  assert.equal(h.root.children.length, 0, 'and leaves nothing behind');
+  assert.equal(h.states.includes('summary'), false, 'an early exit skips the summary');
+  // Past the guard, so only the listener's removal can stop this tap from advancing.
+  n.section.fire('click');
+  assert.equal(h.loop.state(), 'feedback', 'a torn-down round listens to nothing');
+  assert.deepEqual(h.states, before, 'and advances nothing');
+  assert.deepEqual(h.answers, [{ prompt: 'prompt 1', correct: true }]);
+});
+
+test('a zero-item queue summarises as 0/0 instead of starting a round', () => {
+  const h = roundHarness({ queue: [] });
+  const n = roundNodes(h.root);
+
+  assert.equal(n.section.getAttribute('data-state'), 'summary');
+  assert.equal(n.score.textContent, '0/0');
+  assert.equal(n.points.textContent, '+0 pt');
+  assert.equal(n.misses.hidden, true, 'no misses, no list');
+  assert.deepEqual(h.states, ['summary']);
+});
+
+test('roundLoop fails loudly without a document, a mode or a queue', () => {
+  const doc = fakeDocument();
+  const root = doc.createElement('div');
+  const base = { mode: 'choice', sample: () => [], document: doc };
+
+  assert.throws(() => roundLoop(root, { ...base, document: null }), /document-like/);
+  assert.throws(() => roundLoop(root, { ...base, mode: 'both' }), /mode must be/);
+  assert.throws(() => roundLoop(root, { ...base, sample: undefined }), /sample\(\)/);
+  assert.throws(
+    () => roundLoop(root, { ...base, sample: () => null }),
+    /sample\(\) must return an array/,
+  );
+});
+
+test('the round loop\u2019s reserved space and sizes live in the one stylesheet', () => {
+  const round = cssBlock('#round');
+  assert.match(round, /height:\s*100%/, 'the round fills the node a Game was handed');
+  assert.doesNotMatch(round, /100dvh/, '100dvh would push the host back control off screen');
+  assert.match(round, /overflow:\s*hidden/, 'a round never scrolls');
+  assert.match(cssBlock('#prompt'), /min-height:\s*2\.4em/, 'a two-line prompt does not move the card');
+  assert.match(cssBlock('.options'), /min-height:\s*calc\(4 \* 56px/, 'four rows are reserved');
+  assert.match(cssBlock('.opt'), /min-height:\s*56px/);
+  assert.match(cssBlock('.grade'), /min-height:\s*52px/);
+  const css = readFileSync(fileURLToPath(new URL('../styles.css', import.meta.url)), 'utf8');
+  assert.match(
+    css,
+    /\[hidden\]\s*\{[^}]*display:\s*none !important/,
+    'hidden beats the display rules of the nodes the loop swaps around',
+  );
+  assert.match(
+    css,
+    /\[data-state="selfGrade"\]:not\(\[data-grade\]\) \.status\s*\{[^}]*color:\s*var\(--ok\)/,
+    'the revealed answer is green',
+  );
 });
 
 // ------------------------------------------------------------- the service worker (sw.js)

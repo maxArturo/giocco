@@ -46,9 +46,11 @@ browser. `sw.js` takes the same treatment from the other direction: a case runs 
 in a `node:vm` context over `CacheStorage`-shaped fakes and dispatches install/activate/fetch, so
 every documented strategy (precache list, navigation fallback, network-first app code,
 stale-while-revalidate) is asserted without a browser — see `swHarness()` in `tools/sanity.mjs`.
-What a fake cannot see — layout, safe areas, focus order, hit targets under a thumb, offline —
-stays a manual browser/device check; the CSS minimum sizes are the one thing read out of
-`styles.css` by a case.
+`js/lib/roundLoop.js` is the third shape: its `document`, `setTimeout`, `clearTimeout` and `now`
+are injectable defaults, so a case drives the whole cycle — including its three timings — over the
+same `fakeDocument()`. What a fake cannot see — layout, safe areas, focus order, hit targets under
+a thumb, offline — stays a manual browser/device check; the CSS minimum sizes are the one thing
+read out of `styles.css` by a case.
 
 Status: **host engine.** `index.html`, `styles.css`, `manifest.webmanifest`, `icons/`,
 `.nojekyll`, `sw.js` (the classic service worker: the four-URL shell precache, the three fetch
@@ -58,12 +60,14 @@ every registered content file → router/render),
 settings + store), `js/engine.js` (Pool filter, content loading, the five-property Session,
 injectable RNG, settings/Preset helpers), `js/registry.js` (the three permanent ids in
 display order, each importing its `js/games/<id>/index.js`), `js/router.js` (the three frozen
-hash routes, cold-load and unknown-route redirects, screen teardown) and `js/ui.js` (the hub —
+hash routes, cold-load and unknown-route redirects, screen teardown), `js/ui.js` (the hub —
 wordmark plus one card per Game linking to its settings route — the settings screen, and the Game
-route's chrome: a single back control to `#/` plus the empty node a Game draws into) exist. Those
-three Game modules are registration placeholders: they declare `id`, `title`, `description`, the
+route's chrome: a single back control to `#/` plus the empty node a Game draws into) and
+`js/lib/roundLoop.js` (the shared question cycle a Game opts into — ask → feedback/self-grade →
+advance → summary, plus its teardown) exist. Those three Game modules are registration
+placeholders: they declare `id`, `title`, `description`, the
 shared round-count `controls` and a no-op `play()` until their drills, content declarations and
-`content/*.json` land. `js/lib/*` and `content/*.json` do not exist yet, and the boot wiring is
+`content/*.json` land. `content/*.json` does not exist yet, and the boot wiring is
 `js/app.js`: `boot()` registers `./sw.js`, fetches every registered Game's declared content, then
 hands `createRouter()` a renderer that composes the host's screens with that content and the live
 storage slices.
@@ -123,6 +127,21 @@ footer. A value's badge is `filterPool(items, { include: { …current, [dim]: [v
 what it would add given everything else; below five it is dimmed, `aria-disabled` and given a
 `needs 5+ items` sub-line. A Dimension absent from `include` (a Preset mentions only the
 Dimensions it filters) is **unconstrained**, so the form shows it all-on rather than as `None`.
+- `js/lib/roundLoop.js` is the Game-side loop (`docs/design/ui-and-interaction.md` § B is its
+contract), and every environment it touches is an injected default: `roundLoop(root, { mode:
+'choice' | 'reveal', sample, onAnswer, summaryActions, onState, document, setTimeout,
+clearTimeout, now })`. `sample()` is the *only* source of a queue, so Play again is always a
+fresh draw; `onAnswer(question, correct)` records the attempt on the spot and returns the points
+it earned (default 10 per correct); `summaryActions(container)` is called once, at build time,
+where a Game appends its own summary action (US-017's Statistics) between Play again and Done.
+The loop never reads `session`, storage or content, judges a choice by `option === answer`, and
+carries the hub hash `#/` as a literal — importing `router.js` would close the
+`registry → Game → roundLoop → router → registry` cycle that TDZ-fails the structural gate.
+It builds one DOM and mutates it (text, class, `hidden`, `data-state`), re-focuses `#prompt`
+with `preventScroll` on every ask, and returns `{ section, state(), teardown() }`; the timer and
+clock injectables are what let `tools/sanity.mjs` assert the 700/1400 ms auto-advance, the 250 ms
+tap guard and the 250 ms self-grade confirm. `styles.css` pins `[hidden] { display: none
+!important }`, because the loop hides nodes that carry their own `display` rule.
 
 To check the shell the way it is deployed, symlink the repo into a parent directory and serve
 that (`ln -s $PWD /tmp/serve/giocco && cd /tmp/serve && python3 -m http.server 8001`), then load

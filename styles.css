@@ -80,6 +80,15 @@ button {
   outline-offset: 2px;
 }
 
+/*
+ * `hidden` means hidden. The screens toggle it to swap a question for feedback, a summary for a
+ * round, and an accordion body for its header — and several of those nodes carry a `display` rule
+ * of their own, which is exactly the fight a UA stylesheet should not be trusted to win.
+ */
+[hidden] {
+  display: none !important;
+}
+
 /* Every press state, and the only hover states in the app. */
 @media (hover: hover) {
   .game-card:hover,
@@ -298,13 +307,18 @@ button {
   border-bottom: 1px solid var(--line);
 }
 
+/* A text action, as a `<button>` (All / None) or an anchor (the summary's Done). */
 .text-btn {
-  min-height: 40px;
-  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 10px;
   border: 0;
   background: transparent;
   color: var(--accent);
   font-size: 0.9375rem;
+  text-decoration: none;
 }
 
 .value-row {
@@ -429,13 +443,17 @@ button {
 
 /* ---- (B) the round loop --------------------------------------------------- */
 
+/*
+ * The round fills the node a Game was handed, not the viewport: the host's back control sits
+ * above that node, so `100dvh` here would push it off screen, and the shell already carries the
+ * safe-area padding. `overflow: hidden` is the "a round never scrolls" rule.
+ */
 #round {
-  height: 100dvh;
+  height: 100%;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: calc(8px + env(safe-area-inset-top)) var(--pad)
-    calc(12px + env(safe-area-inset-bottom));
 }
 
 .bar {
@@ -476,6 +494,17 @@ button {
 
 [data-state="ask"] .status {
   visibility: hidden;
+}
+
+/*
+ * The revealed answer is the polite status line, promoted: green, and as large as the prompt, so
+ * "Show answer" needs no second node and is announced. Once graded, the line is a confirmation
+ * again — small and muted — which is also how the reveal Game shows a miss without any red.
+ */
+[data-state="selfGrade"]:not([data-grade]) .status {
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--ok);
 }
 
 .options {
@@ -528,6 +557,13 @@ button {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--gap);
+  /* A reveal round has no options block, so the action bar is what holds the bottom. */
+  margin-top: auto;
+}
+
+/* One full-width action — the reveal Game's Show answer. */
+.actions .wide {
+  grid-column: 1 / -1;
 }
 
 .grade {
@@ -552,6 +588,11 @@ button {
 
 .grade:active {
   opacity: 0.85;
+}
+
+/* The 250 ms confirmation of a self-grade: the control the player pressed is filled. */
+.grade[aria-pressed="true"] {
+  background: var(--tint);
 }
 
 /* ---- (B) summary and (D) statistics --------------------------------------- */
@@ -580,7 +621,8 @@ button {
 }
 
 .summary .actions {
-  grid-template-columns: 1fr 1fr 1fr;
+  /* Two host actions, or three once a Game appends its own. */
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
 }
 
 .stats {
