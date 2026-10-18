@@ -42,11 +42,13 @@ drive them with a fake backend.
 Status: **host engine.** `index.html`, `styles.css`, `manifest.webmanifest`, `icons/`,
 `.nojekyll`, the `js/app.js` boot placeholder, `js/storage.js` (envelope, `migrate()`, per-Game
 settings + store), `js/engine.js` (Pool filter, content loading, the five-property Session,
-injectable RNG, settings/Preset helpers) and `js/registry.js` (the three permanent ids in
-display order, each importing its `js/games/<id>/index.js`) exist. Those three Game modules are
-registration placeholders: they declare `id`, `title`, `description` and a no-op `play()` until
-their drills, declarations and `content/*.json` land. `sw.js`, `js/router.js`, `js/ui.js`,
-`js/lib/*` and `content/*.json` do not exist yet.
+injectable RNG, settings/Preset helpers), `js/registry.js` (the three permanent ids in
+display order, each importing its `js/games/<id>/index.js`) and `js/router.js` (the three frozen
+hash routes, cold-load and unknown-route redirects, screen teardown) exist. Those three Game
+modules are registration placeholders: they declare `id`, `title`, `description` and a no-op
+`play()` until their drills, declarations and `content/*.json` land. `sw.js`, `js/ui.js`,
+`js/lib/*` and `content/*.json` do not exist yet, and nothing calls `createRouter()` — the boot
+wiring is US-008's.
 
 ## Shell
 
@@ -61,6 +63,11 @@ yet — it arrives with `sw.js`.
 - `js/registry.js` statically imports every Game module and is the only place a Game is announced,
 so the whole Game graph is fetched and cached on the first online load; `js/engine.js` builds the
 Session from a Game's declaration without reading a single Item field but `tags`.
+- `js/router.js` reads only the fragment, so the deployed subpath never reaches it. It takes its
+environment (`window`) as a parameter, which is how `tools/sanity.mjs` drives cold loads,
+redirects and Back/Forward with a fake; a redirect uses `location.replace()` so the entry that
+held the cold or dead URL is replaced rather than pushed. Whatever a screen's `render` returns is
+its teardown, and the router runs it before the next screen renders and on `stop()`.
 
 To check the shell the way it is deployed, symlink the repo into a parent directory and serve
 that (`ln -s $PWD /tmp/serve/giocco && cd /tmp/serve && python3 -m http.server 8001`), then load

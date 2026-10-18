@@ -164,6 +164,25 @@ A Game's own statistics or options views live *inside* `#/g/<id>`; the host neve
 sub-routes, and a Game that wants no statistics simply has none. Hash routing is not a
 preference: GitHub Pages has no rewrites, so a fragment route never 404s on reload.
 
+`js/router.js` parses exactly those three fragments and resolves two safety rules before it
+renders anything:
+
+- **A cold load of `#/g/<id>` redirects to that Game's settings route.** A bookmark, a reload or
+a hand-typed URL must not enter a round that skipped pool selection — `Start round` is the only
+way in. Once the app is running, `#/g/<id>` renders the Game, which is what `Start round`
+navigates to.
+- **Anything else that is not `#/` redirects to `#/`**: an unregistered id, a dead sub-route
+(`#/g/x/stats`), a fourth segment, an empty id. A Game's own views are not routes, so a stale
+link can never dead-end.
+
+Both redirects use `location.replace()`, so the entry holding the cold or dead URL is replaced
+rather than pushed: Back leaves the app instead of bouncing off a route that redirects again. The
+router also owns screen lifetime — whatever the current screen's render returns is its teardown,
+and it runs before the next screen renders and on `stop()`, which is how leaving a Game tears its
+round down. The environment is a parameter (`createRouter({ render, isGame, window })`), so
+`tools/sanity.mjs` drives cold loads, unknown links and Back/Forward with a fake window instead
+of a browser.
+
 ## Service worker
 
 Classic, ~50 lines, cache-first where it must be and network-first where updates matter:

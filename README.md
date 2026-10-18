@@ -175,6 +175,12 @@ Three host routes:
 - `#/g/<id>/settings` — pool selection, host-rendered from the Game's `dims`, `presets` and
   `controls`.
 
+Two rules ride on that: a cold load of `#/g/<id>` — a bookmark, a reload, a URL typed by hand —
+redirects to that Game's settings route, because `Start round` is the only way into a round; and
+any route that is not one of the three — an unregistered id, a dead sub-route like
+`#/g/x/stats` — redirects to `#/`. A redirect replaces the history entry rather than pushing it,
+so Back leaves the app instead of bouncing off the same redirect.
+
 Hash routing is not optional (GitHub Pages has no rewrites, so a fragment never 404s on
 reload) and it also means routes have no bearing on the service worker's scope — `#/g/x` can be
 renamed any day. What *is* frozen: the deploy subpath (`/giocco/`), `sw.js` at the root of it,

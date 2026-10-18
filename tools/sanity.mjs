@@ -22,6 +22,14 @@ import {
   presetSettings,
 } from '../js/engine.js';
 import { GAME_IDS, GAMES, gameById } from '../js/registry.js';
+import {
+  HUB_HASH,
+  createRouter,
+  gameHash,
+  parseRoute,
+  resolveRoute,
+  settingsHash,
+} from '../js/router.js';
 
 /** Run `fn` with `console.warn` muted; storage warns on purpose for the blob cases. */
 function quiet(fn) {
@@ -73,6 +81,78 @@ function fakeFetch(routes) {
       calls.push(url);
       if (!Object.hasOwn(routes, url)) return { ok: false, status: 404, json: async () => null };
       return { ok: true, status: 200, json: async () => routes[url] };
+    },
+  };
+}
+
+/**
+ * A `window`-shaped fake the router can be driven with: a real history stack, so `back()` and
+ * `forward()` fire `hashchange` the way a browser does, and nothing else — plus `flush()`, for
+ * the browser's queued-event behaviour, which a case opts into with `{ defer: true }`.
+ *
+ * @param {string} [initial] the fragment the app boots on
+ * @param {{ defer?: boolean }} [options] `defer` queues events instead of dispatching them
+ */
+function fakeWindow(initial = HUB_HASH, options = {}) {
+  const entries = [initial];
+  let index = 0;
+  /** @type {Set<() => void>} */
+  const listeners = new Set();
+  /** @type {Array<() => void>} */
+  const queued = [];
+  const replaceCalls = [];
+
+  const dispatch = () => {
+    for (const listener of [...listeners]) listener();
+  };
+  const fire = () => {
+    if (options.defer === true) queued.push(dispatch);
+    else dispatch();
+  };
+
+  const location = {
+    get hash() {
+      return entries[index];
+    },
+    set hash(url) {
+      if (url === entries[index]) return; // an unchanged hash fires no event, as in a browser
+      entries.splice(index + 1);
+      entries.push(url);
+      index = entries.length - 1;
+      fire();
+    },
+    replace(url) {
+      replaceCalls.push(url);
+      entries[index] = url;
+      fire();
+    },
+  };
+
+  return {
+    location,
+    replaceCalls,
+    addEventListener: (type, listener) => {
+      if (type === 'hashchange') listeners.add(listener);
+    },
+    removeEventListener: (type, listener) => {
+      listeners.delete(listener);
+    },
+    listenerCount: () => listeners.size,
+    history: () => [...entries],
+    back() {
+      if (index > 0) {
+        index -= 1;
+        fire();
+      }
+    },
+    forward() {
+      if (index < entries.length - 1) {
+        index += 1;
+        fire();
+      }
+    },
+    flush() {
+      while (queued.length > 0) queued.shift()();
     },
   };
 }
@@ -542,6 +622,166 @@ test('the injectable RNG is deterministic per seed and always in range', () => {
   assert.notDeepEqual(a, [other(), other(), other()]);
   assert.equal(createRng(), Math.random, 'the app gets the real RNG');
   assert.throws(() => createRng(1.5), /integer/);
+});
+
+// ------------------------------------------------------------- the hash router
+
+/** `hub` / `settings:verbi-presente` — enough to see which screen rendered. */
+const screen = (route) => (route.id === null ? route.name : `${route.name}:${route.id}`);
+
+/** A router over a fake window that records every render and teardown, in order. */
+function routerHarness(win, isGame = (id) => id === 'verbi-presente') {
+  /** @type {string[]} */
+  const log = [];
+  const router = createRouter({
+    window: win,
+    isGame,
+    render: (route) => {
+      log.push(`render ${screen(route)}`);
+      return () => log.push(`teardown ${screen(route)}`);
+    },
+  });
+  return { router, log, renders: () => log.filter((line) => line.startsWith('render')) };
+}
+
+test('the router parses exactly the three frozen routes, and nothing else', () => {
+  assert.deepEqual(parseRoute('#/'), { name: 'hub', id: null });
+  assert.deepEqual(parseRoute(''), { name: 'hub', id: null }, 'no fragment is the hub');
+  assert.deepEqual(parseRoute('#'), { name: 'hub', id: null });
+  assert.deepEqual(parseRoute(gameHash('verbi-presente')), { name: 'game', id: 'verbi-presente' });
+  assert.deepEqual(parseRoute(settingsHash('verbi-presente')), { name: 'settings', id: 'verbi-presente' });
+
+  for (const hash of ['#/nope', '#/g', '#/g/', '#/g//settings', '#/g/x/y', '#/g/x/', '#/g/x/stats', '#/settings', 'nope', '#/g/x/Settings']) {
+    assert.equal(parseRoute(hash), null, `${hash} is not a frozen route`);
+  }
+});
+
+test('a cold Game load redirects to its settings route; unknown ids and routes go to the hub', () => {
+  const isGame = (id) => id === 'verbi-presente';
+
+  assert.deepEqual(resolveRoute('#/', { cold: true, isGame }), { route: { name: 'hub', id: null }, redirect: null });
+  assert.deepEqual(resolveRoute('#/g/verbi-presente/settings', { cold: true, isGame }), {
+    route: { name: 'settings', id: 'verbi-presente' },
+    redirect: null,
+  });
+  assert.deepEqual(resolveRoute('#/g/verbi-presente', { cold: true, isGame }), {
+    route: { name: 'settings', id: 'verbi-presente' },
+    redirect: '#/g/verbi-presente/settings',
+  });
+  assert.deepEqual(
+    resolveRoute('#/g/verbi-presente', { isGame }),
+    { route: { name: 'game', id: 'verbi-presente' }, redirect: null },
+    'a warm navigation into a Game route renders the Game',
+  );
+
+  for (const hash of ['#/g/nope', '#/g/nope/settings', '#/nope', '#/g/verbi-presente/stats', '#/g/']) {
+    assert.deepEqual(resolveRoute(hash, { cold: true, isGame }), {
+      route: { name: 'hub', id: null },
+      redirect: HUB_HASH,
+    }, `${hash} redirects to the hub, cold or warm`);
+  }
+});
+
+test('a cold Game load replaces the URL and renders settings, once, hashchange included', () => {
+  const win = fakeWindow('#/g/verbi-presente', { defer: true });
+  const { router, log, renders } = routerHarness(win);
+
+  router.start();
+  assert.deepEqual(renders(), ['render settings:verbi-presente'], 'a cold Game URL never renders the Game');
+  assert.equal(win.location.hash, '#/g/verbi-presente/settings');
+  assert.deepEqual(win.replaceCalls, ['#/g/verbi-presente/settings']);
+  assert.deepEqual(win.history(), ['#/g/verbi-presente/settings'], 'replaced, not pushed');
+
+  win.flush(); // the hashchange the browser queues for the redirect
+  assert.deepEqual(renders(), ['render settings:verbi-presente'], 'the queued hashchange is not a second render');
+  assert.deepEqual(log, ['render settings:verbi-presente'], 'nothing was torn down and re-rendered');
+  assert.deepEqual(router.current(), { name: 'settings', id: 'verbi-presente' });
+});
+
+test('navigation renders each frozen route once, and an unknown route lands on the hub', () => {
+  const win = fakeWindow('#/');
+  const { router, renders } = routerHarness(win);
+
+  router.start();
+  assert.deepEqual(router.current(), { name: 'hub', id: null });
+
+  router.navigate('#/g/verbi-presente/settings');
+  router.navigate('#/g/verbi-presente');
+  router.navigate('#/g/verbi-presente');
+  router.navigate('#/g/verbi-presente/stats');
+  assert.deepEqual(renders(), [
+    'render hub',
+    'render settings:verbi-presente',
+    'render game:verbi-presente',
+    'render hub',
+  ], 'a repeated hash is not a navigation');
+
+  assert.equal(win.location.hash, HUB_HASH);
+  assert.deepEqual(win.replaceCalls, [HUB_HASH], 'only the dead sub-route was replaced');
+  assert.deepEqual(router.current(), { name: 'hub', id: null });
+});
+
+test('leaving a Game tears its round down, and stop() unhooks the hash and tears the screen down', () => {
+  const win = fakeWindow('#/');
+  const { router, log } = routerHarness(win);
+
+  router.start();
+  router.navigate('#/g/verbi-presente/settings');
+  router.navigate('#/g/verbi-presente');
+  assert.deepEqual(log, [
+    'render hub',
+    'teardown hub',
+    'render settings:verbi-presente',
+    'teardown settings:verbi-presente',
+    'render game:verbi-presente',
+  ]);
+
+  router.navigate('#/');
+  assert.deepEqual(log.slice(5), ['teardown game:verbi-presente', 'render hub'], 'the Game tears down on the way out');
+
+  assert.equal(win.listenerCount(), 1);
+  router.stop();
+  assert.equal(win.listenerCount(), 0, 'stopped: hash changes are ignored again');
+  assert.equal(router.current(), null);
+  assert.deepEqual(log.slice(7), ['teardown hub']);
+  router.stop();
+  assert.deepEqual(log.slice(7), ['teardown hub'], 'stop() is idempotent');
+
+  router.start();
+  assert.deepEqual(log.slice(8), ['render hub'], 'a later start() renders the current fragment again');
+});
+
+test('browser back and forward re-render through the hash', () => {
+  const win = fakeWindow('#/');
+  const { router, log } = routerHarness(win, () => true);
+
+  router.start();
+  router.navigate('#/g/verbi-presente/settings');
+  router.navigate('#/g/verbi-presente');
+  win.back(); // a Game is left by going back, and its teardown runs
+  win.back();
+  win.forward();
+
+  assert.deepEqual(log, [
+    'render hub',
+    'teardown hub',
+    'render settings:verbi-presente',
+    'teardown settings:verbi-presente',
+    'render game:verbi-presente',
+    'teardown game:verbi-presente',
+    'render settings:verbi-presente',
+    'teardown settings:verbi-presente',
+    'render hub',
+    'teardown hub',
+    'render settings:verbi-presente',
+  ]);
+  assert.deepEqual(router.current(), { name: 'settings', id: 'verbi-presente' });
+});
+
+test('the router resolves ids against the registry by default, and a router needs a renderer', () => {
+  for (const id of GAME_IDS) assert.deepEqual(resolveRoute(gameHash(id)).route, { name: 'game', id });
+  assert.deepEqual(resolveRoute('#/g/not-a-game').route, { name: 'hub', id: null });
+  assert.throws(() => createRouter({}), /render/);
 });
 
 /** @returns {Promise<boolean>} true when every case passed */
