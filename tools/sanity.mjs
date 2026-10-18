@@ -460,6 +460,31 @@ test('every registered Game follows the module contract', () => {
   }
 });
 
+// Two Games share one corpus (`verbi-presente` and its reveal sibling), so the file is gated
+// against each declaration separately. Nothing but this case stops the declarations from
+// drifting apart, which would fail the structural gate on a file neither Game changed.
+test('the two verb Games share one corpus and declare it identically', () => {
+  const recognise = gameById('verbi-presente');
+  const produce = gameById('verbi-presente-rivela');
+  assert.ok(recognise && produce);
+  assert.equal(produce.content, recognise.content, 'one file, both declarations');
+  assert.deepEqual(produce.fields, recognise.fields);
+  assert.deepEqual(produce.dims, recognise.dims);
+  assert.deepEqual(produce.presets, recognise.presets);
+
+  const items = JSON.parse(readFileSync(fileURLToPath(new URL('../content/verbi-presente.json', import.meta.url)), 'utf8'));
+  assert.equal(items.length, 120, '20 lexemes × six persons');
+  for (const item of items) assert.deepEqual(Object.keys(item), recognise.fields, `${item.id} carries exactly the declared fields`);
+
+  // 20 distinct lexemes, six persons each — the shape the ≥5 rule was authored against.
+  const lexemes = new Set(items.map((item) => item.id.replace(/^verbi-pres-/, '').replace(/-[0-9][sp]$/, '')));
+  assert.equal(lexemes.size, 20);
+  for (const lexeme of lexemes) {
+    const persons = items.filter((item) => item.id.startsWith(`verbi-pres-${lexeme}-`)).map((item) => item.tags.find((tag) => tag.startsWith('person:')));
+    assert.deepEqual([...persons].sort(), ['person:1p', 'person:1s', 'person:2p', 'person:2s', 'person:3p', 'person:3s']);
+  }
+});
+
 test('gameById finds every registered Game and nothing else', () => {
   for (const game of GAMES) assert.equal(gameById(game.id), game);
   assert.equal(gameById('nope'), null);

@@ -68,10 +68,13 @@ wordmark plus one card per Game linking to its settings route — the settings s
 route's chrome: a single back control to `#/` plus the empty node a Game draws into) and
 `js/lib/roundLoop.js` (the shared question cycle a Game opts into — ask → feedback/self-grade →
 advance → summary, plus its teardown) and `js/lib/charts.js` (the two dependency-free inline-SVG
-chart helpers a Game's own statistics view draws with) exist. Those three Game modules are registration
-placeholders: they declare `id`, `title`, `description`, the
-shared round-count `controls` and a no-op `play()` until their drills, content declarations and
-`content/*.json` land. `content/*.json` does not exist yet, and the boot wiring is
+chart helpers a Game's own statistics view draws with) exist, and `content/verbi-presente.json`
+(the hand-authored verb corpus: 20 lexemes × six persons = 120 Items) now ships. Those three
+Game modules are registration placeholders: they declare `id`, `title`, `description`, the
+shared round-count `controls` and a no-op `play()` until their drills land; the two verb modules
+also declare `content`, `fields`, `dims` and `presets` (US-012), so the one verb file is gated
+against both of them — their declarations must stay in step, which `tools/sanity.mjs` checks.
+`content/nomi-plurale.json` does not exist yet, and the boot wiring is
 `js/app.js`: `boot()` registers `./sw.js`, fetches every registered Game's declared content, then
 hands `createRouter()` a renderer that composes the host's screens with that content and the live
 storage slices.
