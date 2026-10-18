@@ -22,7 +22,7 @@
 import { roundLoop } from '../../lib/roundLoop.js';
 import { masteryOf, roundCount, weightedQueue } from '../verbi-presente/index.js';
 
-/** The shared round-count control every Game declares (US-007). */
+/** @type {import('../../engine.js').Control} The shared round-count control every Game declares. */
 const ROUND_COUNT = {
   id: 'count',
   label: 'Round',
@@ -33,10 +33,14 @@ const ROUND_COUNT = {
 /**
  * A verb Item draws with `prompt` / `answer` / `distractors` and is filtered by `tags` —
  * exactly these five fields, no authoring-only metadata.
+ * @type {string[]}
  */
 const FIELDS = ['id', 'prompt', 'answer', 'distractors', 'tags'];
 
-/** The verb vocabulary v0.1 (docs/design/content-and-progress.md § A). Declare only what ships. */
+/**
+ * The verb vocabulary v0.1 (docs/design/content-and-progress.md § A). Declare only what ships.
+ * @type {import('../../engine.js').Dim[]}
+ */
 const DIMS = [
   { dim: 'mood', values: ['ind'] },
   { dim: 'tense', values: ['pres'] },
@@ -47,7 +51,13 @@ const DIMS = [
   { dim: 'cefr', values: ['a1'] },
 ];
 
-/** Named learner Pools, identical to `verbi-presente`'s. Each covers at least five Items. */
+/**
+ * Named learner Pools, identical to `verbi-presente`'s. Each covers at least five Items.
+ *
+ * Annotated as `Preset[]` for the same reason the choice Game's are: inference would widen the
+ * heterogeneous `include` maps into a union nothing assigns to `Record<string, string[]>`.
+ * @type {import('../../engine.js').Preset[]}
+ */
 const PRESETS = [
   { id: 'a1', label: 'A1 - regolari', include: { reg: ['regular', 'spelling'] } },
   { id: 'irregolari', label: 'Irregolari', include: { reg: ['irregular'] } },
@@ -86,7 +96,8 @@ export function revealQuestion(item) {
   return { prompt: item.prompt, answer: item.answer };
 }
 
-export default {
+/** @type {import('../../engine.js').Game} */
+const verbiPresenteRivela = {
   id: 'verbi-presente-rivela',
   title: 'Verbi · rivela',
   description: 'Produci la forma e autovalutati',
@@ -115,3 +126,5 @@ export default {
     return roundLoop(host, { mode: 'reveal', sample }).teardown;
   },
 };
+
+export default verbiPresenteRivela

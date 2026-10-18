@@ -18,7 +18,7 @@
 
 import { roundLoop } from '../../lib/roundLoop.js';
 
-/** The shared round-count control every Game declares (US-007). */
+/** @type {import('../../engine.js').Control} The shared round-count control every Game declares. */
 const ROUND_COUNT = {
   id: 'count',
   label: 'Round',
@@ -29,10 +29,14 @@ const ROUND_COUNT = {
 /**
  * A verb Item draws with `prompt` / `answer` / `distractors` and is filtered by `tags` —
  * exactly these five fields, no authoring-only metadata.
+ * @type {string[]}
  */
 const FIELDS = ['id', 'prompt', 'answer', 'distractors', 'tags'];
 
-/** The verb vocabulary v0.1 (docs/design/content-and-progress.md § A). Declare only what ships. */
+/**
+ * The verb vocabulary v0.1 (docs/design/content-and-progress.md § A). Declare only what ships.
+ * @type {import('../../engine.js').Dim[]}
+ */
 const DIMS = [
   { dim: 'mood', values: ['ind'] },
   { dim: 'tense', values: ['pres'] },
@@ -43,7 +47,15 @@ const DIMS = [
   { dim: 'cefr', values: ['a1'] },
 ];
 
-/** Named learner Pools. Every one of them covers at least five Items of the shipped corpus. */
+/**
+ * Named learner Pools. Every one of them covers at least five Items of the shipped corpus.
+ *
+ * Annotated as `Preset[]` rather than left to inference: a heterogeneous array of object
+ * literals (`{ reg } | { cefr }`) infers a union whose members carry `cefr?: undefined`, and no
+ * `Record<string, string[]>` accepts an `undefined`-typed key — which would fail the registry's
+ * `Game[]` and tempt a cast into host code.
+ * @type {import('../../engine.js').Preset[]}
+ */
 const PRESETS = [
   { id: 'a1', label: 'A1 - regolari', include: { reg: ['regular', 'spelling'] } },
   { id: 'irregolari', label: 'Irregolari', include: { reg: ['irregular'] } },
@@ -185,10 +197,14 @@ export function questionFor(item, rng) {
  */
 export function roundCount(settings) {
   const chosen = Number(settings?.controls?.count);
-  return Number.isFinite(chosen) && chosen > 0 ? Math.floor(chosen) : ROUND_COUNT.default;
+  if (Number.isFinite(chosen) && chosen > 0) return Math.floor(chosen);
+  // The declaration's own default, which `Control.default` types as `string | number`.
+  const declared = Number(ROUND_COUNT.default);
+  return Number.isFinite(declared) && declared > 0 ? Math.floor(declared) : 10;
 }
 
-export default {
+/** @type {import('../../engine.js').Game} */
+const verbiPresente = {
   id: 'verbi-presente',
   title: 'Verbi · presente',
   description: 'Coniugazioni al presente',
@@ -220,3 +236,5 @@ export default {
     return roundLoop(host, { mode: 'choice', sample }).teardown;
   },
 };
+
+export default verbiPresente

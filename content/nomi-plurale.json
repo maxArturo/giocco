@@ -1,0 +1,457 @@
+[
+  {
+    "id": "nomi-pl-libro",
+    "prompt": "il libro → i ___",
+    "answer": "libri",
+    "distractors": ["libro", "libre", "libra"],
+    "tags": ["gender:m", "plural:-o/-i", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-tavolo",
+    "prompt": "il tavolo → i ___",
+    "answer": "tavoli",
+    "distractors": ["tavolo", "tavole", "tavola"],
+    "tags": ["gender:m", "plural:-o/-i", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-gatto",
+    "prompt": "il gatto → i ___",
+    "answer": "gatti",
+    "distractors": ["gatto", "gatte", "gatta"],
+    "tags": ["gender:m", "plural:-o/-i", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-quaderno",
+    "prompt": "il quaderno → i ___",
+    "answer": "quaderni",
+    "distractors": ["quaderno", "quaderne", "quaderna"],
+    "tags": ["gender:m", "plural:-o/-i", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-panino",
+    "prompt": "il panino → i ___",
+    "answer": "panini",
+    "distractors": ["panino", "panine", "panina"],
+    "tags": ["gender:m", "plural:-o/-i", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-casa",
+    "prompt": "la casa → le ___",
+    "answer": "case",
+    "distractors": ["casa", "casi", "caso"],
+    "tags": ["gender:f", "plural:-a/-e", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-penna",
+    "prompt": "la penna → le ___",
+    "answer": "penne",
+    "distractors": ["penna", "penni", "pinne"],
+    "tags": ["gender:f", "plural:-a/-e", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-porta",
+    "prompt": "la porta → le ___",
+    "answer": "porte",
+    "distractors": ["porta", "porti", "porto"],
+    "tags": ["gender:f", "plural:-a/-e", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-finestra",
+    "prompt": "la finestra → le ___",
+    "answer": "finestre",
+    "distractors": ["finestra", "finestri", "finestro"],
+    "tags": ["gender:f", "plural:-a/-e", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-sedia",
+    "prompt": "la sedia → le ___",
+    "answer": "sedie",
+    "distractors": ["sedia", "sedi", "sedio"],
+    "tags": ["gender:f", "plural:-a/-e", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-cane",
+    "prompt": "il cane → i ___",
+    "answer": "cani",
+    "distractors": ["cane", "cana", "canne"],
+    "tags": ["gender:m", "plural:-e/-i", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-pesce",
+    "prompt": "il pesce → i ___",
+    "answer": "pesci",
+    "distractors": ["pesce", "pesca", "pesche"],
+    "tags": ["gender:m", "plural:-e/-i", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-mare",
+    "prompt": "il mare → i ___",
+    "answer": "mari",
+    "distractors": ["mare", "mara", "marmi"],
+    "tags": ["gender:m", "plural:-e/-i", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-studente",
+    "prompt": "lo studente → gli ___",
+    "answer": "studenti",
+    "distractors": ["studente", "studenta", "studentesse"],
+    "tags": ["gender:m", "plural:-e/-i", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-chiave",
+    "prompt": "la chiave → le ___",
+    "answer": "chiavi",
+    "distractors": ["chiave", "chiava", "chiavette"],
+    "tags": ["gender:f", "plural:-e/-i", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-banco",
+    "prompt": "il banco → i ___",
+    "answer": "banchi",
+    "distractors": ["banci", "banco", "banche"],
+    "tags": ["gender:m", "plural:-co/-chi", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-bosco",
+    "prompt": "il bosco → i ___",
+    "answer": "boschi",
+    "distractors": ["bosci", "bosco", "bosche"],
+    "tags": ["gender:m", "plural:-co/-chi", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-pacco",
+    "prompt": "il pacco → i ___",
+    "answer": "pacchi",
+    "distractors": ["paci", "pacco", "pacche"],
+    "tags": ["gender:m", "plural:-co/-chi", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-buco",
+    "prompt": "il buco → i ___",
+    "answer": "buchi",
+    "distractors": ["buci", "buco", "buche"],
+    "tags": ["gender:m", "plural:-co/-chi", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-fico",
+    "prompt": "il fico → i ___",
+    "answer": "fichi",
+    "distractors": ["fici", "fico", "fiche"],
+    "tags": ["gender:m", "plural:-co/-chi", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-albergo",
+    "prompt": "l'albergo → gli ___",
+    "answer": "alberghi",
+    "distractors": ["albergi", "albergo", "alberghe"],
+    "tags": ["gender:m", "plural:-go/-ghi", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-fungo",
+    "prompt": "il fungo → i ___",
+    "answer": "funghi",
+    "distractors": ["fungi", "fungo", "funghe"],
+    "tags": ["gender:m", "plural:-go/-ghi", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-lago",
+    "prompt": "il lago → i ___",
+    "answer": "laghi",
+    "distractors": ["lagi", "lago", "laghe"],
+    "tags": ["gender:m", "plural:-go/-ghi", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-dialogo",
+    "prompt": "il dialogo → i ___",
+    "answer": "dialoghi",
+    "distractors": ["dialogi", "dialogo", "dialoghe"],
+    "tags": ["gender:m", "plural:-go/-ghi", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-luogo",
+    "prompt": "il luogo → i ___",
+    "answer": "luoghi",
+    "distractors": ["luogi", "luogo", "luoghe"],
+    "tags": ["gender:m", "plural:-go/-ghi", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-banca",
+    "prompt": "la banca → le ___",
+    "answer": "banche",
+    "distractors": ["bance", "banca", "banchi"],
+    "tags": ["gender:f", "plural:-ca/-che", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-tasca",
+    "prompt": "la tasca → le ___",
+    "answer": "tasche",
+    "distractors": ["tasce", "tasca", "taschi"],
+    "tags": ["gender:f", "plural:-ca/-che", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-formica",
+    "prompt": "la formica → le ___",
+    "answer": "formiche",
+    "distractors": ["formice", "formica", "formichi"],
+    "tags": ["gender:f", "plural:-ca/-che", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-mucca",
+    "prompt": "la mucca → le ___",
+    "answer": "mucche",
+    "distractors": ["mucce", "mucca", "mucchi"],
+    "tags": ["gender:f", "plural:-ca/-che", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-amica",
+    "prompt": "l'amica → le ___",
+    "answer": "amiche",
+    "distractors": ["amice", "amica", "amichi"],
+    "tags": ["gender:f", "plural:-ca/-che", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-alga",
+    "prompt": "l'alga → le ___",
+    "answer": "alghe",
+    "distractors": ["alge", "alga", "alghi"],
+    "tags": ["gender:f", "plural:-ga/-ghe", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-bottega",
+    "prompt": "la bottega → le ___",
+    "answer": "botteghe",
+    "distractors": ["bottege", "bottega", "botteghi"],
+    "tags": ["gender:f", "plural:-ga/-ghe", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-strega",
+    "prompt": "la strega → le ___",
+    "answer": "streghe",
+    "distractors": ["strege", "strega", "streghi"],
+    "tags": ["gender:f", "plural:-ga/-ghe", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-collega",
+    "prompt": "la collega → le ___",
+    "answer": "colleghe",
+    "distractors": ["college", "collega", "colleghi"],
+    "tags": ["gender:f", "plural:-ga/-ghe", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-fatica",
+    "prompt": "la fatica → le ___",
+    "answer": "fatiche",
+    "distractors": ["fatice", "fatica", "fatichi"],
+    "tags": ["gender:f", "plural:-ga/-ghe", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-camicia",
+    "prompt": "la camicia → le ___",
+    "answer": "camicie",
+    "distractors": ["camice", "camicia", "camici"],
+    "tags": ["gender:f", "plural:-cia/-gie", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-farmacia",
+    "prompt": "la farmacia → le ___",
+    "answer": "farmacie",
+    "distractors": ["farmace", "farmacia", "farmaci"],
+    "tags": ["gender:f", "plural:-cia/-gie", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-ciliegia",
+    "prompt": "la ciliegia → le ___",
+    "answer": "ciliegie",
+    "distractors": ["ciliege", "ciliegia", "ciliegi"],
+    "tags": ["gender:f", "plural:-cia/-gie", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-valigia",
+    "prompt": "la valigia → le ___",
+    "answer": "valigie",
+    "distractors": ["valige", "valigia", "valigi"],
+    "tags": ["gender:f", "plural:-cia/-gie", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-bugia",
+    "prompt": "la bugia → le ___",
+    "answer": "bugie",
+    "distractors": ["buge", "bugia", "bugi"],
+    "tags": ["gender:f", "plural:-cia/-gie", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-arancia",
+    "prompt": "l'arancia → le ___",
+    "answer": "arance",
+    "distractors": ["arancie", "arancia", "aranci"],
+    "tags": ["gender:f", "plural:-cia/-ce", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-goccia",
+    "prompt": "la goccia → le ___",
+    "answer": "gocce",
+    "distractors": ["goccie", "goccia", "gocci"],
+    "tags": ["gender:f", "plural:-cia/-ce", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-roccia",
+    "prompt": "la roccia → le ___",
+    "answer": "rocce",
+    "distractors": ["roccie", "roccia", "rocci"],
+    "tags": ["gender:f", "plural:-cia/-ce", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-traccia",
+    "prompt": "la traccia → le ___",
+    "answer": "tracce",
+    "distractors": ["traccie", "traccia", "tracci"],
+    "tags": ["gender:f", "plural:-cia/-ce", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-pancia",
+    "prompt": "la pancia → le ___",
+    "answer": "pance",
+    "distractors": ["pancie", "pancia", "panci"],
+    "tags": ["gender:f", "plural:-cia/-ce", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-citta",
+    "prompt": "la città → le ___",
+    "answer": "città",
+    "distractors": ["citte", "citta", "citti"],
+    "tags": ["gender:f", "plural:invariabile", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-caffe",
+    "prompt": "il caffè → i ___",
+    "answer": "caffè",
+    "distractors": ["caffi", "caffe", "caffei"],
+    "tags": ["gender:m", "plural:invariabile", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-film",
+    "prompt": "il film → i ___",
+    "answer": "film",
+    "distractors": ["filmi", "filme", "films"],
+    "tags": ["gender:m", "plural:invariabile", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-bar",
+    "prompt": "il bar → i ___",
+    "answer": "bar",
+    "distractors": ["bari", "bare", "barre"],
+    "tags": ["gender:m", "plural:invariabile", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-universita",
+    "prompt": "l'università → le ___",
+    "answer": "università",
+    "distractors": ["universite", "universita", "universiti"],
+    "tags": ["gender:f", "plural:invariabile", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-uovo",
+    "prompt": "l'uovo → le ___",
+    "answer": "uova",
+    "distractors": ["uovi", "uove", "uovo"],
+    "tags": ["gender:m", "plural:-o/-a", "irreg:gender-change", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-braccio",
+    "prompt": "il braccio → le ___",
+    "answer": "braccia",
+    "distractors": ["bracci", "braccie", "braccio"],
+    "tags": ["gender:m", "plural:-o/-a", "irreg:gender-change", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-dito",
+    "prompt": "il dito → le ___",
+    "answer": "dita",
+    "distractors": ["diti", "dite", "dito"],
+    "tags": ["gender:m", "plural:-o/-a", "irreg:gender-change", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-paio",
+    "prompt": "il paio → le ___",
+    "answer": "paia",
+    "distractors": ["pai", "paie", "paio"],
+    "tags": ["gender:m", "plural:-o/-a", "irreg:gender-change", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-centinaio",
+    "prompt": "il centinaio → le ___",
+    "answer": "centinaia",
+    "distractors": ["centinai", "centinaie", "centinaio"],
+    "tags": ["gender:m", "plural:-o/-a", "irreg:gender-change", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-amico",
+    "prompt": "l'amico → gli ___",
+    "answer": "amici",
+    "distractors": ["amichi", "amiche", "amico"],
+    "tags": ["gender:m", "plural:-co/-ci", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-medico",
+    "prompt": "il medico → i ___",
+    "answer": "medici",
+    "distractors": ["medichi", "mediche", "medico"],
+    "tags": ["gender:m", "plural:-co/-ci", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-greco",
+    "prompt": "il greco → i ___",
+    "answer": "greci",
+    "distractors": ["grechi", "greche", "greco"],
+    "tags": ["gender:m", "plural:-co/-ci", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-porco",
+    "prompt": "il porco → i ___",
+    "answer": "porci",
+    "distractors": ["porchi", "porche", "porco"],
+    "tags": ["gender:m", "plural:-co/-ci", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-sindaco",
+    "prompt": "il sindaco → i ___",
+    "answer": "sindaci",
+    "distractors": ["sindachi", "sindache", "sindaco"],
+    "tags": ["gender:m", "plural:-co/-ci", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-uomo",
+    "prompt": "l'uomo → gli ___",
+    "answer": "uomini",
+    "distractors": ["uomi", "uomeni", "uomo"],
+    "tags": ["gender:m", "plural:irregolare", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-mano",
+    "prompt": "la mano → le ___",
+    "answer": "mani",
+    "distractors": ["mane", "manie", "mano"],
+    "tags": ["gender:f", "plural:irregolare", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-dio",
+    "prompt": "il dio → gli ___",
+    "answer": "dei",
+    "distractors": ["dii", "dio", "dee"],
+    "tags": ["gender:m", "plural:irregolare", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-bue",
+    "prompt": "il bue → i ___",
+    "answer": "buoi",
+    "distractors": ["bui", "buove", "bue"],
+    "tags": ["gender:m", "plural:irregolare", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-tempio",
+    "prompt": "il tempio → i ___",
+    "answer": "templi",
+    "distractors": ["tempii", "tempie", "tempio"],
+    "tags": ["gender:m", "plural:irregolare", "irreg:plural", "cefr:a1"]
+  }
+]

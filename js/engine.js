@@ -27,9 +27,30 @@
 /** @typedef {{ pool: Item[], content: unknown, settings: Settings, rng: () => number, store: unknown }} Session */
 
 /**
+ * One settings-screen section: a Dimension and its allowlisted values, in declaration order.
+ * @typedef {{ dim: string, values: string[] }} Dim
+ */
+
+/**
+ * A named Pool: a Preset id and label plus the `include` map it writes into Settings.
+ * @typedef {{ id: string, label: string, include: Record<string, string[]> }} Preset
+ */
+
+/**
+ * One declared control (v0.1 has exactly the shared round count).
+ * @typedef {{ id: string, label: string, options: Array<string | number>, default: string | number }} Control
+ */
+
+/**
  * One Game's module contract. `id`, `title` and a synchronous `play()` returning its own
  * teardown are the whole requirement; every other declaration is optional, and a Game that
  * declares nothing else still gets a hub entry, a filtered (empty) Pool and a back control.
+ *
+ * These typedefs are the single definition of each declaration shape: a Game annotates its own
+ * literals with them (`Dim[]`, `Preset[]`, `Control[]`, and the declaration itself as `Game`), so
+ * a heterogeneous `presets` array is checked against `include: Record<string, string[]>` instead
+ * of widening into a union of object literals with `undefined`-typed missing keys — which nothing
+ * would accept, and which would fail `registry.js`'s `Game[]` without a cast.
  *
  * @typedef {{
  *   id: string,
@@ -39,9 +60,9 @@
  *   section?: string,
  *   content?: string | Record<string, string>,
  *   fields?: string[],
- *   dims?: Array<{ dim: string, values: string[] }>,
- *   presets?: Array<{ id: string, label: string, include: Record<string, string[]> }>,
- *   controls?: Array<{ id: string, label: string, options: Array<string | number>, default: string | number }>,
+ *   dims?: Dim[],
+ *   presets?: Preset[],
+ *   controls?: Control[],
  * }} Game
  */
 

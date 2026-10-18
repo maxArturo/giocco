@@ -32,6 +32,13 @@ A Game declares the exact Item field names in `fields` (default
 `['id', 'prompt', 'answer', 'distractors', 'tags']`); the gate rejects an Item with an extra or
 missing field. Extend `tools/selftest.mjs` (not a new framework) when adding a gate rule.
 
+A Game's declaration literals carry `engine.js`'s own typedefs (`/** @type {Dim[]} */`,
+`Preset[]`, `Control[]`, and the exported object as `Game`). That is not decoration: an
+unannotated heterogeneous `presets` array (`{ reg: […] }` beside `{ cefr: […] }`) infers a union
+whose members carry the missing key as `undefined`, which no `Record<string, string[]>` accepts —
+so `registry.js`'s `Game[]` fails on a file the Game never touched. Annotating in the Game keeps
+`registry.js` free of casts and keeps one definition of each shape.
+
 Host modules that are DOM-free carry their deterministic checks in `tools/sanity.mjs` instead
 (`node tools/sanity.mjs`, also run by `npm test`); it imports `js/**` directly with plain
 `node:assert` cases, and a case may be `async` (`runSanity()` awaits every case). Host modules
@@ -80,11 +87,12 @@ policy (`weightedQueue`, `masteryOf`, `roundCount`), draws the same weighted, wi
 queue and hands `roundLoop()` `mode: 'reveal'` with `{ prompt, answer }` questions — one prompt,
 one *Show answer*, then the two self-grade labels, nothing red and no auto-advance. Mastery is
 read from *its own* `session.store`, so production progress never borrows recognition's.
-`nomi-plurale` is still a registration placeholder: it declares `id`, `title`, `description`, the
-shared round-count `controls` and a no-op `play()` until its drill lands; the two verb modules
-also declare `content`, `fields`, `dims` and `presets` (US-012), so the one verb file is gated
-against both of them — their declarations must stay in step, which `tools/sanity.mjs` checks.
-`content/nomi-plurale.json` does not exist yet, and the boot wiring is
+`nomi-plurale` declares its own `content`, `fields`, the four noun `dims` (`gender`, `plural`,
+`irreg`, `cefr`) and the three noun `presets` (US-015), so `content/nomi-plurale.json` — the
+hand-authored noun corpus, 13 plural patterns × five nouns = 65 Items — is now gated against it;
+its `play()` is still a no-op until US-016 lands the drill. The two verb modules also declare
+`content`, `fields`, `dims` and `presets` (US-012), so the one verb file is gated against both of
+them — their declarations must stay in step, which `tools/sanity.mjs` checks. The boot wiring is
 `js/app.js`: `boot()` registers `./sw.js`, fetches every registered Game's declared content, then
 hands `createRouter()` a renderer that composes the host's screens with that content and the live
 storage slices.

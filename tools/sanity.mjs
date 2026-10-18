@@ -498,6 +498,60 @@ test('the two verb Games share one corpus and declare it identically', () => {
   }
 });
 
+// The noun corpus has one owning Game, so the structural gate already covers its shape and its
+// ≥5 rule. This case records the authored *plan* the corpus was sized against and the house rules
+// docs/design/content-and-progress.md § C calls out, so a later edit that quietly drops a pattern's
+// fifth noun (and then its Dimension value) or loses a documented rule fails here too.
+test('the noun Game declares a corpus that fills every declared value', () => {
+  const game = gameById('nomi-plurale');
+  assert.equal(game.content, './content/nomi-plurale.json');
+  assert.deepEqual(game.fields, ['id', 'prompt', 'answer', 'distractors', 'tags']);
+  assert.deepEqual(
+    game.dims.map((entry) => entry.dim),
+    ['gender', 'plural', 'irreg', 'cefr'],
+    'the documented Dimension order, no m/f or a2 value advertised before its nouns exist',
+  );
+  assert.deepEqual(game.presets, [
+    { id: 'a1', label: 'A1 - tutto', include: { cefr: ['a1'] } },
+    { id: 'plurali-regolari', label: 'Plurali regolari', include: { irreg: ['none'] } },
+    { id: 'plurali-irregolari', label: 'Plurali irregolari', include: { irreg: ['plural', 'gender-change'] } },
+  ]);
+
+  const items = JSON.parse(readFileSync(fileURLToPath(new URL('../content/nomi-plurale.json', import.meta.url)), 'utf8'));
+  assert.equal(items.length, 65, 'thirteen plural patterns × five nouns');
+  for (const noun of items) assert.deepEqual(Object.keys(noun), game.fields, `${noun.id} carries exactly the declared fields`);
+  assert.equal(new Set(items.map((noun) => noun.id)).size, items.length, 'ids are unique');
+  assert.equal(new Set(items.map((noun) => noun.prompt)).size, items.length, 'no two Items share a prompt');
+
+  const count = (/** @type {string} */ tag) => items.filter((noun) => noun.tags.includes(tag)).length;
+  for (const { dim, values } of game.dims) {
+    for (const value of values) assert.ok(count(`${dim}:${value}`) >= 5, `${dim}:${value} ships at least five Items`);
+  }
+
+  // Each plural pattern is one hand-authored group of five: the corpus is sized by the rule, not
+  // padded until the gate stops complaining.
+  const patterns = /** @type {any} */ (game.dims.find((entry) => entry.dim === 'plural')).values;
+  assert.equal(patterns.length, 13);
+  for (const pattern of patterns) assert.equal(count(`plural:${pattern}`), 5, `plural:${pattern} is five nouns`);
+
+  // The two irregular presets are the split the corpus is built on: 45 regular, 20 irregular.
+  assert.equal(count('irreg:none'), 45);
+  assert.equal(count('irreg:plural') + count('irreg:gender-change'), 20);
+  assert.equal(count('cefr:a1'), items.length, 'cefr:a1 is the only CEFR value authored');
+
+  // The house rules § C asks for, each with the nouns it names: hard `-co/-go` (`alberghi`) next
+  // to the sound shift (`amici`), the kept and dropped `i` (`camicie` / `arance`), the invariants
+  // (`città`), and the gender-changing plurals (`uova`).
+  const answerOf = (/** @type {string} */ id) => /** @type {any} */ (items.find((noun) => noun.id === id)).answer;
+  assert.equal(answerOf('nomi-pl-albergo'), 'alberghi');
+  assert.equal(answerOf('nomi-pl-amico'), 'amici');
+  assert.equal(answerOf('nomi-pl-camicia'), 'camicie');
+  assert.equal(answerOf('nomi-pl-arancia'), 'arance');
+  assert.equal(answerOf('nomi-pl-citta'), 'città');
+  assert.equal(answerOf('nomi-pl-uovo'), 'uova');
+  assert.equal(answerOf('nomi-pl-mano'), 'mani', 'a feminine -o noun: la mano → le mani');
+});
+
 test('gameById finds every registered Game and nothing else', () => {
   for (const game of GAMES) assert.equal(gameById(game.id), game);
   assert.equal(gameById('nope'), null);
