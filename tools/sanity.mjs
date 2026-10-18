@@ -2,8 +2,9 @@
  * Deterministic Node-level sanity checks for the host modules that are pure enough to run
  * without a browser: `js/storage.js`, `js/engine.js`, `js/registry.js`, `js/router.js` today —
  * plus `js/ui.js` against a minimal fake `document`, which checks the screen structure it builds
- * (elements, order, hrefs) and not the layout, focus or taps a browser owns. Run by `npm test`
- * (or `node tools/sanity.mjs`).
+ * (elements, order, hrefs) and not the layout, focus or taps a browser owns — plus `sw.js`, run in
+ * a `node:vm` context over a `CacheStorage` fake so its precache list and its four request
+ * strategies are checked without a browser. Run by `npm test` (or `node tools/sanity.mjs`).
  *
  * Dependency-free `node:assert` only — the project ships no test framework. Behaviour that
  * needs a real browser (boot, offline, safe areas, hit targets under a thumb) is verified
@@ -14,6 +15,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createContext, runInContext } from 'node:vm';
 
 import { KEY, VERSION, createStorage, migrate } from '../js/storage.js';
 import {
@@ -1596,6 +1598,412 @@ test('boot fails loudly without a document or the #app root node', async () => {
     () => boot({ document: { createElement: () => ({}), getElementById: () => null } }),
     /#app root node/,
   );
+});
+
+test('boot registers ./sw.js with updateViaCache: none before it fetches anything', async () => {
+  const log = [];
+  const harness = bootHarness({
+    games: [bootGame('one', './content/one.json', [])],
+    routes: { [`${SITE_BASE}content/one.json`]: [item('one-1', ['a:x'])] },
+  });
+
+  const app = await boot({
+    document: harness.doc,
+    window: harness.win,
+    root: harness.root,
+    storage: createStorage(fakeBackend()),
+    games: harness.games,
+    fetch: async (/** @type {string} */ url) => {
+      log.push(`fetch:${url}`);
+      return harness.fetch(url);
+    },
+    base: harness.base,
+    // Never settles: boot resolving at all is the proof that registration is fire-and-forget.
+    serviceWorker: {
+      register(url, options) {
+        log.push(`register:${url}:${JSON.stringify(options)}`);
+        return new Promise(() => {});
+      },
+    },
+  });
+
+  assert.equal(log[0], 'register:./sw.js:{"updateViaCache":"none"}');
+  assert.equal(log.filter((entry) => entry.startsWith('register:')).length, 1, 'registered once');
+  assert.ok(
+    log.slice(1).every((entry) => entry.startsWith('fetch:')),
+    'the shell cache fills while the content loads',
+  );
+  assert.deepEqual(app.router.current(), { name: 'hub', id: null });
+});
+
+test('boot starts without a service worker, and a refused registration is only a warning', async () => {
+  const warnings = [];
+  const { warn } = console;
+  console.warn = (...args) => warnings.push(args.join(' '));
+  try {
+    // An insecure context (`file://`, a plain-`http` LAN address) has no container at all.
+    const bare = bootHarness({ games: [], routes: {} });
+    const without = await boot({
+      document: bare.doc,
+      window: bare.win,
+      root: bare.root,
+      storage: createStorage(fakeBackend()),
+      games: [],
+      fetch: bare.fetch,
+      base: bare.base,
+      serviceWorker: null,
+    });
+    assert.deepEqual(without.router.current(), { name: 'hub', id: null });
+
+    const refused = bootHarness({ games: [], routes: {} });
+    const app = await boot({
+      document: refused.doc,
+      window: refused.win,
+      root: refused.root,
+      storage: createStorage(fakeBackend()),
+      games: [],
+      fetch: refused.fetch,
+      base: refused.base,
+      serviceWorker: { register: () => Promise.reject(new Error('insecure context')) },
+    });
+    assert.deepEqual(app.router.current(), { name: 'hub', id: null }, 'the app still started');
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.ok(
+      warnings.some((line) => /service worker did not register/.test(line)),
+      'a refused registration is a warning, not a failed boot',
+    );
+  } finally {
+    console.warn = warn;
+  }
+});
+
+// ------------------------------------------------------------- the service worker (sw.js)
+
+/** The deployed shape again: `sw.js` sits at the root of the frozen subpath, which is its scope. */
+const SW_ORIGIN = 'https://site.test';
+const SW_URL = `${SW_ORIGIN}/giocco/sw.js`;
+
+/** @param {string} url @param {unknown} body @param {{ status?: number }} [options] */
+function swResponse(url, body, options = {}) {
+  const status = options.status ?? 200;
+  return {
+    url,
+    status,
+    ok: status >= 200 && status < 300,
+    body,
+    clone: () => swResponse(url, body, { status }),
+  };
+}
+
+/**
+ * Run the real `sw.js` in a `node:vm` context over `CacheStorage`/`Cache`-shaped fakes, so a case
+ * can dispatch the install/activate/fetch events and see what the worker answered, cached and
+ * deleted. This is the offline story minus a browser's own HTTP cache and the device.
+ */
+function swHarness() {
+  /** @type {Map<string, Map<string, any>>} */
+  const stores = new Map();
+  const flags = { skipWaiting: 0, claim: 0 };
+  /** @type {string[]} */
+  const fetchCalls = [];
+  /** @type {Map<string, unknown>} */
+  const network = new Map();
+  let online = true;
+
+  /** Cache keys are absolute; a relative one resolves against the worker's own URL, as in a browser. */
+  const absolute = (/** @type {string} */ url) =>
+    url.startsWith('http') ? url : new URL(url, SW_URL).href;
+
+  /** @param {string | { url: string }} input */
+  async function fetchImpl(input) {
+    const url = absolute(typeof input === 'string' ? input : input.url);
+    fetchCalls.push(url);
+    if (!online) throw new TypeError('Failed to fetch');
+    if (!network.has(url)) return swResponse(url, null, { status: 404 });
+    return swResponse(url, network.get(url));
+  }
+
+  /** @param {string} name */
+  const cacheApi = (name) => {
+    const entries = stores.get(name);
+    if (!entries) throw new Error(`no such cache: ${name}`);
+    return {
+      addAll: async (/** @type {string[]} */ urls) => {
+        for (const url of urls) {
+          const response = await fetchImpl(url);
+          if (!response.ok) throw new Error(`precache failed: ${url}`);
+          entries.set(absolute(url), response);
+        }
+      },
+      put: async (/** @type {any} */ request, /** @type {any} */ response) => {
+        entries.set(absolute(typeof request === 'string' ? request : request.url), response);
+      },
+      match: async (/** @type {any} */ request) =>
+        entries.get(absolute(typeof request === 'string' ? request : request.url)),
+    };
+  };
+
+  const caches = {
+    open: async (/** @type {string} */ name) => {
+      if (!stores.has(name)) stores.set(name, new Map());
+      return cacheApi(name);
+    },
+    keys: async () => [...stores.keys()],
+    delete: async (/** @type {string} */ name) => stores.delete(name),
+  };
+
+  /** @type {Record<string, Array<(event: any) => void>>} */
+  const listeners = {};
+  const self = {
+    location: { href: SW_URL, origin: SW_ORIGIN },
+    addEventListener: (/** @type {string} */ type, /** @type {any} */ listener) => {
+      (listeners[type] ??= []).push(listener);
+    },
+    skipWaiting: async () => {
+      flags.skipWaiting += 1;
+    },
+    clients: {
+      claim: async () => {
+        flags.claim += 1;
+      },
+    },
+  };
+
+  /** @param {string} type */
+  const dispatch = async (type) => {
+    /** @type {Array<Promise<unknown>>} */
+    const waiting = [];
+    const event = { waitUntil: (promise) => waiting.push(promise) };
+    for (const listener of listeners[type] ?? []) listener(event);
+    await Promise.all(waiting);
+  };
+
+  /** @param {{ url: string, method: string, mode: string }} request */
+  const dispatchFetch = async (request) => {
+    /** @type {Array<Promise<unknown>>} */
+    const waiting = [];
+    /** @type {Promise<any> | null} */
+    let responded = null;
+    const event = {
+      request,
+      respondWith: (/** @type {Promise<any>} */ promise) => {
+        responded = promise;
+      },
+      waitUntil: (/** @type {Promise<unknown>} */ promise) => waiting.push(promise),
+    };
+    for (const listener of listeners.fetch ?? []) listener(event);
+    if (responded === null) {
+      return { intercepted: false, response: null, waiting, settle: async () => {} };
+    }
+    return {
+      intercepted: true,
+      response: await responded,
+      // Background work the worker scheduled (`waitUntil`) — how a case sees that a
+      // stale-while-revalidate refresh is actually in flight.
+      waiting,
+      // A stale-while-revalidate refresh is scheduled *while* the response is produced, so the
+      // background work is only awaited here.
+      settle: async () => {
+        await Promise.resolve();
+        await Promise.all(waiting);
+      },
+    };
+  };
+
+  const source = readFileSync(fileURLToPath(new URL('../sw.js', import.meta.url)), 'utf8');
+  runInContext(`${source}\nself.__declared = { CACHE, SHELL };`, createContext({ self, caches, fetch: fetchImpl, URL, console }), {
+    filename: 'sw.js',
+  });
+
+  return {
+    source,
+    flags,
+    fetchCalls,
+    listeners: () => Object.keys(listeners),
+    declarations: () => self.__declared,
+    install: () => dispatch('install'),
+    activate: () => dispatch('activate'),
+    dispatchFetch,
+    /** @param {string} url @param {{ method?: string, mode?: string }} [options] */
+    request: (url, options = {}) => ({
+      url: absolute(url),
+      method: options.method ?? 'GET',
+      mode: options.mode ?? 'no-cors',
+    }),
+    /** What the network will answer with from now on. @param {string} url @param {unknown} body */
+    send: (url, body) => network.set(absolute(url), body),
+    /** Create another cache, the way a previous deploy's worker would have. */
+    openCache: (/** @type {string} */ name) => caches.open(name),
+    hasCache: (/** @type {string} */ name) => stores.has(name),
+    hasEntry: (/** @type {string} */ name, /** @type {string} */ url) =>
+      (stores.get(name) ?? new Map()).has(absolute(url)),
+    entries: (/** @type {string} */ name) => [...(stores.get(name) ?? new Map()).keys()],
+    cached: (/** @type {string} */ name, /** @type {string} */ url) =>
+      (stores.get(name) ?? new Map()).get(absolute(url))?.body,
+    offline: () => {
+      online = false;
+    },
+    online: () => {
+      online = true;
+    },
+  };
+}
+
+const SHELL_URLS = [
+  'https://site.test/giocco/',
+  'https://site.test/giocco/index.html',
+  'https://site.test/giocco/styles.css',
+  'https://site.test/giocco/manifest.webmanifest',
+];
+
+/** Every request class that must land on the network first. */
+const APP_CODE_URLS = [
+  'js/app.js',
+  'js/lib/roundLoop.js',
+  'styles.css',
+  'manifest.webmanifest',
+  'sw.js',
+];
+
+/** Install the shell, the way any case that needs a populated cache starts. */
+async function installedSw() {
+  const harness = swHarness();
+  for (const url of SHELL_URLS) harness.send(url, `shell:${url}`);
+  await harness.install();
+  return harness;
+}
+
+test('sw.js is a classic script with the frozen v0.1 cache name and shell list', () => {
+  const harness = swHarness();
+  const { CACHE, SHELL } = harness.declarations();
+
+  assert.equal(CACHE, 'giocco-v1', 'the cache name is not renamed in v0.1');
+  // `Array.from` copies out of the vm realm, or `deepEqual` compares prototypes across realms.
+  assert.deepEqual(Array.from(SHELL), ['./', './index.html', './styles.css', './manifest.webmanifest']);
+  assert.deepEqual(
+    harness.listeners(),
+    ['install', 'activate', 'fetch'],
+    'no warm list and no message channel',
+  );
+  assert.doesNotMatch(harness.source, /^\s*(?:import|export)\s/m, 'classic worker, never a module');
+  assert.doesNotMatch(harness.source, /postMessage|addEventListener\(['"]message/);
+  assert.doesNotMatch(harness.source, /tools\//, 'the development gate is never cached or shipped');
+});
+
+test('install precaches exactly the four shell URLs, and nothing else', async () => {
+  const harness = await installedSw();
+
+  assert.deepEqual(harness.entries('giocco-v1'), SHELL_URLS);
+  assert.deepEqual(harness.fetchCalls, SHELL_URLS, 'the shell is the whole precache');
+  assert.equal(harness.flags.skipWaiting, 1, 'the new worker takes over on install');
+});
+
+test('activate drops every older cache and claims the open clients', async () => {
+  const harness = await installedSw();
+  await harness.openCache('giocco-v0');
+
+  await harness.activate();
+
+  assert.equal(harness.hasCache('giocco-v0'), false, 'the previous cache name is deleted');
+  assert.equal(harness.hasCache('giocco-v1'), true);
+  assert.deepEqual(harness.entries('giocco-v1'), SHELL_URLS, 'the current cache survives');
+  assert.equal(harness.flags.claim, 1);
+});
+
+test('a navigation is answered from the cached shell, and the network only as a last resort', async () => {
+  const harness = await installedSw();
+  const settled = harness.fetchCalls.length;
+
+  harness.offline();
+  const offline = await harness.dispatchFetch(
+    harness.request('https://site.test/giocco/a/deep/link', { mode: 'navigate' }),
+  );
+  assert.equal(offline.intercepted, true);
+  assert.equal(offline.response.body, `shell:${SHELL_URLS[1]}`, 'never a browser error page');
+  assert.equal(harness.fetchCalls.length, settled, 'a navigation never waits on the network');
+
+  harness.online();
+  const online = await harness.dispatchFetch(
+    harness.request('https://site.test/giocco/', { mode: 'navigate' }),
+  );
+  assert.equal(online.response.body, `shell:${SHELL_URLS[1]}`, 'the cached shell wins online too');
+  assert.equal(harness.fetchCalls.length, settled);
+
+  // Before the worker has installed, a navigation is still the network's job.
+  const cold = swHarness();
+  cold.send('https://site.test/giocco/', 'live page');
+  const fresh = await cold.dispatchFetch(
+    cold.request('https://site.test/giocco/', { mode: 'navigate' }),
+  );
+  assert.equal(fresh.response.body, 'live page');
+});
+
+test('app code is network-first, with the cache as the offline fallback', async () => {
+  const harness = await installedSw();
+  for (const url of APP_CODE_URLS) harness.send(url, `${url}:v1`);
+
+  for (const url of APP_CODE_URLS) {
+    const first = await harness.dispatchFetch(harness.request(url));
+    assert.equal(first.response.body, `${url}:v1`, `${url} comes from the network`);
+    assert.equal(harness.cached('giocco-v1', url), `${url}:v1`, `${url} is cached as it passes`);
+  }
+
+  harness.send('js/app.js', 'js/app.js:v2');
+  const fixed = await harness.dispatchFetch(harness.request('js/app.js'));
+  assert.equal(fixed.response.body, 'js/app.js:v2', 'a fix lands on the first online load');
+  assert.equal(harness.cached('giocco-v1', 'js/app.js'), 'js/app.js:v2');
+
+  harness.offline();
+  for (const url of APP_CODE_URLS) {
+    const cached = await harness.dispatchFetch(harness.request(url));
+    assert.equal(cached.response.body, harness.cached('giocco-v1', url), `${url} falls back to cache`);
+  }
+  await assert.rejects(
+    () => harness.dispatchFetch(harness.request('js/never-seen.js')).then((result) => result.response),
+    'offline with nothing cached is a network error, not a wrong response',
+  );
+});
+
+test('other same-origin content is stale-while-revalidate', async () => {
+  const harness = await installedSw();
+  const url = 'content/verbi-presente.json';
+
+  harness.send(url, 'corpus v1');
+  const miss = await harness.dispatchFetch(harness.request(url));
+  assert.equal(miss.response.body, 'corpus v1', 'a miss fetches and caches');
+  assert.equal(harness.cached('giocco-v1', url), 'corpus v1');
+  assert.equal(miss.waiting.length, 0, 'a miss has nothing to refresh in the background');
+
+  harness.send(url, 'corpus v2');
+  const stale = await harness.dispatchFetch(harness.request(url));
+  assert.equal(stale.response.body, 'corpus v1', 'the cached copy is served at once');
+  assert.equal(stale.waiting.length, 1, 'the refresh is kept alive as a background task');
+  await stale.settle();
+  assert.equal(harness.cached('giocco-v1', url), 'corpus v2', 'the refresh rewrote the cache behind it');
+
+  const next = await harness.dispatchFetch(harness.request(url));
+  assert.equal(next.response.body, 'corpus v2', 'a corpus edit appears on the next load');
+
+  harness.offline();
+  harness.send(url, 'unreachable');
+  const offline = await harness.dispatchFetch(harness.request(url));
+  assert.equal(offline.response.body, 'corpus v2', 'offline answers from the cache');
+  await offline.settle(); // the failed background refresh must not reject or clobber the cache
+  assert.equal(harness.cached('giocco-v1', url), 'corpus v2');
+});
+
+test('a non-GET or cross-origin request is left to the network', async () => {
+  const harness = await installedSw();
+  const settled = harness.fetchCalls.length;
+
+  const post = await harness.dispatchFetch(harness.request('content/x.json', { method: 'POST' }));
+  assert.equal(post.intercepted, false);
+  const other = await harness.dispatchFetch(
+    harness.request('https://other.test/giocco/content/x.json'),
+  );
+  assert.equal(other.intercepted, false);
+  assert.equal(harness.fetchCalls.length, settled, 'not ours to handle, so not ours to fetch');
 });
 
 test('the shell hands boot one #app root and one module entry, and boot’s imports stay relative', () => {

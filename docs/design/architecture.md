@@ -15,7 +15,7 @@ styles.css              all shared CSS — there are no per-Game stylesheets
 icons/                  180 / 192 / 512 + a maskable one
 content/<game>.json     hand-authored Items, one file per Game
 js/
-  app.js                boot: registry → content → router → warm the service worker
+  app.js                boot: register the service worker → registry → content → router
   router.js             hash router, three routes
   registry.js           the only place a Game is announced
   engine.js             the four host jobs
@@ -30,7 +30,9 @@ tools/check.mjs         dev-only structural gate; never shipped, never precached
 
 ## Boot
 
-1. `index.html` loads and registers `./sw.js` (classic, scope `/giocco/`).
+1. `js/app.js` registers `./sw.js` (classic, scope `/giocco/`) with `{ updateViaCache: 'none' }`,
+   fire-and-forget: an insecure context or a browser without service workers warns and the app
+   still runs; the shell cache fills while the graph and the corpus load.
 2. `app.js` imports `registry.js` — which statically imports every Game module, so the whole
    Game graph is fetched (and therefore cached by the service worker) on the first online load.
 3. Every registered Game's `content` is fetched, all of it, at boot. Hundreds of kilobytes is
@@ -215,18 +217,25 @@ of a browser.
 
 ## Service worker
 
-Classic, ~50 lines, cache-first where it must be and network-first where updates matter:
+`sw.js`, classic, cache-first where it must be and network-first where updates matter. The table
+is the contract; the file is the authority.
 
 | Request | Strategy | Why |
 |---|---|---|
-| precached shell (`index.html`, `styles.css`, icons, manifest) | cache-first, precached on install | offline must work before anything else |
-| navigations | cache, falling back to the cached `index.html` | an installed app must never show a browser error page |
-| app code (`js/**`, `sw.js`) | network-first, cache fallback | a fix lands on the first online load |
-| everything else same-origin (`content/*.json`) | stale-while-revalidate | corpus edits appear on the next load, offline never breaks |
+| precached shell (`./`, `./index.html`, `./styles.css`, `./manifest.webmanifest`) | precached on install; cache-first | offline must work before anything else |
+| navigations | the cached `./index.html`, falling back to the network | an installed app must never show a browser error page |
+| app code (`js/**`, `sw.js`, CSS, the webmanifest) | network-first, cache fallback | a fix lands on the first online load |
+| everything else same-origin (`content/*.json`, icons) | stale-while-revalidate | corpus edits appear on the next load, offline never breaks |
+
+App code is matched before the shell, so `styles.css` and the manifest are precached *and*
+network-first, as they must be to take a fix. Icons are not in `SHELL` (v0.1 keeps that list at
+four entries) and are cached by the first request for them, like any other same-origin file.
 
 ```js
 const CACHE = 'giocco-v1';                                  // bump on deploy
 const SHELL = ['./', './index.html', './styles.css', './manifest.webmanifest'];
+const SHELL_PATHS = new Set(SHELL.map(e => new URL(e, self.location.href).pathname));
+const APP_CODE = /\/js\/|sw\.js$|\.css$|\.webmanifest$/;
 
 self.addEventListener('install', e => e.waitUntil(
   caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())));
@@ -238,26 +247,20 @@ self.addEventListener('activate', e => e.waitUntil(
 
 self.addEventListener('fetch', e => {
   const { request } = e;
-  if (request.method !== 'GET' || new URL(request.url).origin !== location.origin) return;
+  if (request.method !== 'GET') return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
 
-  const isNav  = request.mode === 'navigate';
-  const isCode = /\/js\/|\.css$|\.webmanifest$/.test(new URL(request.url).pathname);
-
-  e.respondWith((async () => {
-    const cache = await caches.open(CACHE);
-    if (isNav) return (await cache.match('./index.html')) || fetch(request);
-    if (isCode) {
-      try {
-        const fresh = await fetch(request);
-        cache.put(request, fresh.clone());
-        return fresh;
-      } catch { return (await cache.match(request)) || Response.error(); }
-    }
-    const hit = await cache.match(request);
-    return hit || fetch(request).then(r => (cache.put(request, r.clone()), r));
-  })());
+  if (request.mode === 'navigate') e.respondWith(navigation(request));
+  else if (APP_CODE.test(url.pathname)) e.respondWith(networkFirst(request));
+  else if (SHELL_PATHS.has(url.pathname)) e.respondWith(cacheFirst(request));
+  else e.respondWith(staleWhileRevalidate(e));
 });
 ```
+
+`staleWhileRevalidate` returns a cache hit immediately and schedules the refresh with
+`event.waitUntil` (which keeps the worker alive for it); on a miss it fetches and caches. A
+failed background refresh is swallowed — the stale copy is the answer.
 
 There is **no warm list and no `postMessage` channel**. Every Game module is statically imported by
 `registry.js` and every content file is fetched at boot, so both pass through this handler and are

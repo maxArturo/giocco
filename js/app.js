@@ -2,14 +2,16 @@
 /**
  * Boot: the Game graph → every registered content file → routing.
  *
- * `index.html` has exactly one module entry, and this is it. Importing `./registry.js` is what
- * brings the whole Game graph in — its static imports of the three Game modules are fetched on
- * the first online load and therefore cached for the first offline one — so the two jobs left
- * here are:
+ * `index.html` has exactly one module entry, and this is it. The documented boot order is the
+ * service worker, then the Game graph, then every content file, then the router:
  *
- * 1. Fetch every registered Game's declared content, all of it, at boot. A Game whose content
+ * 1. Register `./sw.js` (fire-and-forget).
+ * 2. Importing `./registry.js` brings the whole Game graph in — its static imports of the three
+ *    Game modules are fetched on the first online load and therefore cached for the first
+ *    offline one.
+ * 3. Fetch every registered Game's declared content, all of it, at boot. A Game whose content
  *    was fetched on first visit would silently not exist offline.
- * 2. Hand `js/router.js` a renderer that composes the host's screens with that loaded content
+ * 4. Hand `js/router.js` a renderer that composes the host's screens with that loaded content
  *    and the live `storage` slices.
  *
  * Nothing is validated here. `tools/check.mjs` is an author-time gate over the corpus; running it
@@ -48,12 +50,36 @@ const ROOT_ID = 'app';
  *   fetch?: typeof globalThis.fetch,
  *   base?: string,
  *   rng?: () => number,
+ *   serviceWorker?: ServiceWorkerContainer | null,
  * }} BootOptions
  */
 
 /**
- * Start the host: content first, then the router. Everything injected has a browser default, so
- * `boot()` is the whole browser path.
+ * Register the service worker: its install precaches the shell and its fetch handler answers the
+ * next load from a cache, which is what makes the app work offline.
+ *
+ * Deliberately fire-and-forget. An insecure context (`file://`, an `http://` LAN address) or a
+ * browser without service workers must degrade to an ordinary online-only app, never to a page
+ * that failed to start — so a failed registration is a warning, not an error. It is the first
+ * thing boot does, so the shell cache is filling while the corpus loads.
+ *
+ * `./sw.js` is relative like every other URL, which is what gives the worker the deployed
+ * `/giocco/` scope; `{ updateViaCache: 'none' }` keeps GitHub Pages' ten-minute `Cache-Control`
+ * off the script that is otherwise the one file a fix can be stuck behind.
+ *
+ * @param {ServiceWorkerContainer | null | undefined} container injected by `tools/sanity.mjs`
+ */
+function registerServiceWorker(container) {
+  const target = container === undefined ? globalThis.navigator?.serviceWorker : container;
+  if (!target || typeof target.register !== 'function') return;
+  target.register('./sw.js', { updateViaCache: 'none' }).catch((error) => {
+    console.warn('giocco: the service worker did not register', error);
+  });
+}
+
+/**
+ * Start the host: the service worker, then content, then the router. Everything injected has a
+ * browser default, so `boot()` is the whole browser path.
  *
  * @param {BootOptions} [options] injected by `tools/sanity.mjs`; the browser passes nothing
  * @returns {Promise<{
@@ -73,6 +99,8 @@ export async function boot(options = {}) {
   if (!appRoot) throw new Error(`giocco app: index.html must provide a #${ROOT_ID} root node`);
   /** The checked root, non-null for every screen below. @type {HTMLElement} */
   const root = appRoot;
+
+  registerServiceWorker(options.serviceWorker);
 
   const games = options.games ?? GAMES;
   const storage = options.storage ?? createStorage();
