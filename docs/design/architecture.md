@@ -57,8 +57,22 @@ its whole content file; if it declares no `content` either, the pool is empty an
 its own round. The host has now done its whole job on selection: **ordering, weighting, count and
 repetition are the Game's business.**
 
+Three edges `js/engine.js` fixes so a Game author never has to guess them: a **Dimension** listed
+with an empty value list (the settings screen's "None") matches nothing, while a **Dimension**
+absent from `include` is no constraint at all; for a Game declaring a content *map*, the **Pool**
+is the Items of every array-valued file it declared, concatenated in declaration order; and the
+settings shapes the screen starts from live in the engine too — `defaultSettings(game)` (every
+value of every Dimension, `preset: null`, every control at its declared default) and
+`presetSettings(game, id, current)` (the Preset's `include` copied out, its id recorded, the
+current control values kept). The **Session** is assembled by `createSession(game, { content,
+settings, store, rng })`, which is the engine's entire Game-facing API; `createRng(seed)` gives the
+deterministic RNG a check or a bug report needs and `Math.random` is the app default.
+
 **2. Load content.** `session.content` is the parsed JSON, keyed when the Game declared a map
-(`{ words: './content/parole.json' }` → `session.content.words`).
+(`{ words: './content/parole.json' }` → `session.content.words`). Paths are relative to the
+deployed site root — the directory `index.html` sits in — never to `js/engine.js`, so a content
+path works unchanged from the `/giocco/` subpath and from a root dev server. A failed fetch is a
+loud error, not a silently empty Pool.
 
 **3. Host chrome.** On `#/g/<id>` the host draws exactly one thing: the back control to the hub,
 so no Game can trap the player. Everything else on that screen is the Game's. The other host

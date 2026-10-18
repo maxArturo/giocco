@@ -34,14 +34,19 @@ missing field. Extend `tools/selftest.mjs` (not a new framework) when adding a g
 
 Host modules that are DOM-free carry their deterministic checks in `tools/sanity.mjs` instead
 (`node tools/sanity.mjs`, also run by `npm test`); it imports `js/**` directly with plain
-`node:assert` cases. Anything that needs a DOM (boot, rendering, offline) is verified manually.
-Host modules that touch environment globals (`localStorage`) take them as injectable defaults
-so Node can drive them with a fake backend.
+`node:assert` cases, and a case may be `async` (`runSanity()` awaits every case). Anything that
+needs a DOM (boot, rendering, offline) is verified manually. Host modules that touch environment
+globals (`localStorage`) or the network (`fetch`) take them as injectable defaults so Node can
+drive them with a fake backend.
 
-Status: **host storage.** `index.html`, `styles.css`, `manifest.webmanifest`, `icons/`,
-`.nojekyll`, the `js/app.js` boot placeholder and `js/storage.js` (envelope, `migrate()`,
-per-Game settings + store) exist. `sw.js`, the rest of the host modules and `content/*.json`
-do not.
+Status: **host engine.** `index.html`, `styles.css`, `manifest.webmanifest`, `icons/`,
+`.nojekyll`, the `js/app.js` boot placeholder, `js/storage.js` (envelope, `migrate()`, per-Game
+settings + store), `js/engine.js` (Pool filter, content loading, the five-property Session,
+injectable RNG, settings/Preset helpers) and `js/registry.js` (the three permanent ids in
+display order, each importing its `js/games/<id>/index.js`) exist. Those three Game modules are
+registration placeholders: they declare `id`, `title`, `description` and a no-op `play()` until
+their drills, declarations and `content/*.json` land. `sw.js`, `js/router.js`, `js/ui.js`,
+`js/lib/*` and `content/*.json` do not exist yet.
 
 ## Shell
 
@@ -53,6 +58,9 @@ the `roundLoop()` markup, statistics rows). There is no per-Game stylesheet and 
 - `js/app.js` is a boot placeholder so the shell has no broken asset reference; the registry →
 content → router wiring lands there later. Service-worker registration is not in `index.html`
 yet — it arrives with `sw.js`.
+- `js/registry.js` statically imports every Game module and is the only place a Game is announced,
+so the whole Game graph is fetched and cached on the first online load; `js/engine.js` builds the
+Session from a Game's declaration without reading a single Item field but `tags`.
 
 To check the shell the way it is deployed, symlink the repo into a parent directory and serve
 that (`ln -s $PWD /tmp/serve/giocco && cd /tmp/serve && python3 -m http.server 8001`), then load

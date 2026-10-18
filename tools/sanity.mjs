@@ -1,7 +1,7 @@
 /**
  * Deterministic Node-level sanity checks for the host modules that are pure enough to run
- * without a DOM: `js/storage.js` today, the engine / router / round loop / charts as they
- * land. Run by `npm test` (or `node tools/sanity.mjs`).
+ * without a DOM: `js/storage.js`, `js/engine.js` and `js/registry.js` today; the router /
+ * round loop / charts as they land. Run by `npm test` (or `node tools/sanity.mjs`).
  *
  * Dependency-free `node:assert` only — the project ships no test framework. Behaviour that
  * needs a browser (boot, offline, rendering) is verified manually instead; see AGENTS.md.
@@ -12,6 +12,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { KEY, VERSION, createStorage, migrate } from '../js/storage.js';
+import {
+  createRng,
+  createSession,
+  defaultSettings,
+  filterPool,
+  itemsOf,
+  loadContent,
+  presetSettings,
+} from '../js/engine.js';
+import { GAME_IDS, GAMES, gameById } from '../js/registry.js';
 
 /** Run `fn` with `console.warn` muted; storage warns on purpose for the blob cases. */
 function quiet(fn) {
@@ -45,9 +55,53 @@ function fakeBackend(initial = null) {
   };
 }
 
-/** @type {Array<{ name: string, run: () => void }>} */
+/** @type {Array<{ name: string, run: () => void | Promise<void> }>} */
 const cases = [];
 const test = (name, run) => cases.push({ name, run });
+
+/**
+ * A `fetch`-shaped fake keyed by absolute URL, so a case can prove exactly which URLs were
+ * requested and in which order.
+ * @param {Record<string, unknown>} routes
+ */
+function fakeFetch(routes) {
+  /** @type {string[]} */
+  const calls = [];
+  return {
+    calls,
+    fetch: async (/** @type {string} */ url) => {
+      calls.push(url);
+      if (!Object.hasOwn(routes, url)) return { ok: false, status: 404, json: async () => null };
+      return { ok: true, status: 200, json: async () => routes[url] };
+    },
+  };
+}
+
+/** A minimal Game declaration; the engine reads nothing from it but the fields it declares. */
+const noopGame = { id: 'noop', title: 'Noop', play: () => () => {} };
+
+/** A two-Dimension fixture shaped like the shipped verb Games. */
+const fixtureGame = {
+  id: 'fixture',
+  title: 'Fixture',
+  play: () => () => {},
+  content: './content/fixture.json',
+  dims: [
+    { dim: 'reg', values: ['regular', 'spelling', 'irregular'] },
+    { dim: 'person', values: ['1s', '2s'] },
+  ],
+  presets: [{ id: 'a1', label: 'A1', include: { reg: ['regular', 'spelling'] } }],
+  controls: [{ id: 'count', label: 'Round', options: [5, 10, 20], default: 10 }],
+};
+
+/** An Item is opaque to the engine; only `tags` is ever read. */
+const item = (id, tags) => ({ id, prompt: id, answer: id, distractors: [], tags });
+
+/** Settings with just an include map, as the filter cases need them. */
+const withInclude = (include) => ({ preset: null, include, controls: {} });
+
+/** @param {Array<{ id: string }>} items */
+const ids = (items) => items.map((entry) => entry.id);
 
 // ------------------------------------------------------------- the frozen contract
 test('the key and version are the frozen v0.1 contract', () => {
@@ -293,13 +347,210 @@ test('a backend-less environment (Node, private mode) fails loudly, not silently
   assert.throws(() => createStorage(/** @type {any} */ ({ getItem: () => null })), /localStorage-like backend/);
 });
 
-/** @returns {boolean} true when every case passed */
-export function runSanity() {
+// ------------------------------------------------------------- the registry
+// `registry.js` is the sole Game announcement point: three imports, three entries. These
+// checks are what keeps "exactly the three permanent ids, in display order" true.
+test('the registry announces exactly the three permanent ids, in display order', () => {
+  assert.deepEqual([...GAME_IDS], ['verbi-presente', 'verbi-presente-rivela', 'nomi-plurale']);
+  assert.deepEqual(
+    GAMES.map((game) => game.id),
+    [...GAME_IDS],
+    'the registered modules are the announced ids, in the same order',
+  );
+  assert.equal(new Set(GAME_IDS).size, GAME_IDS.length);
+});
+
+test('every registered Game follows the module contract', () => {
+  for (const game of GAMES) {
+    assert.equal(typeof game.id, 'string', 'a Game declares a string id');
+    assert.ok(game.id.trim() !== '');
+    assert.equal(typeof game.title, 'string', `${game.id} declares a title`);
+    assert.ok(game.title.trim() !== '');
+    assert.equal(typeof game.play, 'function', `${game.id} declares a synchronous play()`);
+  }
+});
+
+test('gameById finds every registered Game and nothing else', () => {
+  for (const game of GAMES) assert.equal(gameById(game.id), game);
+  assert.equal(gameById('nope'), null);
+  assert.equal(gameById(''), null);
+});
+
+// ------------------------------------------------------------- the pool filter
+test('the pool filter is OR inside a Dimension and AND across Dimensions', () => {
+  const items = [
+    item('a', ['reg:regular', 'person:1s']),
+    item('b', ['reg:spelling', 'person:2s']),
+    item('c', ['reg:irregular', 'person:1s']),
+  ];
+  assert.deepEqual(ids(filterPool(items, withInclude({}))), ['a', 'b', 'c'], 'no include is the whole file');
+  assert.deepEqual(ids(filterPool(items, withInclude({ reg: ['regular', 'spelling'] }))), ['a', 'b'], 'OR inside');
+  assert.deepEqual(ids(filterPool(items, withInclude({ person: ['1s', '2s'] }))), ['a', 'b', 'c']);
+  assert.deepEqual(ids(filterPool(items, withInclude({ reg: ['regular'], person: ['2s'] }))), [], 'AND across');
+  assert.deepEqual(ids(filterPool(items, withInclude({ reg: ['regular'], person: ['1s', '2s'] }))), ['a']);
+});
+
+test('a Dimension listed with no values matches nothing, and an untagged Item never matches', () => {
+  const items = [item('a', ['reg:regular']), { id: 'bare' }];
+  assert.deepEqual(ids(filterPool(items, withInclude({}))), ['a', 'bare']);
+  assert.deepEqual(ids(filterPool(items, withInclude({ reg: [] }))), [], 'None really is an empty pool');
+  assert.deepEqual(ids(filterPool(items, withInclude({ reg: ['regular'] }))), ['a']);
+  assert.deepEqual(ids(filterPool(items, withInclude({ reg: ['spelling'] }))), []);
+});
+
+test('filtering never rewrites an Item and never returns the caller\'s array', () => {
+  const weird = { id: 'x', tags: ['reg:regular'], answer: 42, nested: { keep: true } };
+  const items = [weird];
+
+  const all = filterPool(items, withInclude({}));
+  assert.notEqual(all, items, 'a fresh array, so a Game cannot mutate the caller\'s list');
+  assert.equal(all[0], weird, 'the same Item object, untouched');
+  assert.equal(filterPool(items, withInclude({ reg: ['regular'] }))[0], weird);
+});
+
+// ------------------------------------------------------------- presets and settings
+test('a first visit selects every declared value and every control default', () => {
+  assert.deepEqual(defaultSettings(fixtureGame), {
+    preset: null,
+    include: { reg: ['regular', 'spelling', 'irregular'], person: ['1s', '2s'] },
+    controls: { count: 10 },
+  });
+  assert.deepEqual(
+    defaultSettings(noopGame),
+    { preset: null, include: {}, controls: {} },
+    'a Game declaring nothing gets a usable, empty settings object',
+  );
+});
+
+test('choosing a preset copies its include map and records its id', () => {
+  const chosen = presetSettings(fixtureGame, 'a1', { ...defaultSettings(fixtureGame), controls: { count: 20 } });
+  assert.deepEqual(chosen, { preset: 'a1', include: { reg: ['regular', 'spelling'] }, controls: { count: 20 } });
+
+  chosen.include.reg.push('irregular');
+  assert.deepEqual(fixtureGame.presets[0].include.reg, ['regular', 'spelling'], 'the declaration is not aliased');
+
+  assert.deepEqual(presetSettings(fixtureGame, 'a1').controls, { count: 10 }, 'control defaults survive');
+  assert.throws(() => presetSettings(fixtureGame, 'nope'), /declares no preset "nope"/);
+});
+
+test('a chosen preset produces the documented pool', () => {
+  const items = [
+    item('a', ['reg:regular', 'person:1s']),
+    item('b', ['reg:spelling', 'person:2s']),
+    item('c', ['reg:irregular', 'person:1s']),
+  ];
+  assert.deepEqual(ids(filterPool(items, presetSettings(fixtureGame, 'a1'))), ['a', 'b']);
+  assert.deepEqual(ids(filterPool(items, defaultSettings(fixtureGame))), ['a', 'b', 'c']);
+});
+
+// ------------------------------------------------------------- content mapping
+test('content is fetched from the declared path, resolved against the site root', async () => {
+  const backend = fakeFetch({ 'http://example.test/giocco/content/verbi-presente.json': [{ id: 'v-1' }] });
+  const game = { ...noopGame, content: './content/verbi-presente.json' };
+
+  const content = await loadContent(game, { base: 'http://example.test/giocco/', fetch: backend.fetch });
+
+  assert.deepEqual(content, [{ id: 'v-1' }]);
+  assert.deepEqual(backend.calls, ['http://example.test/giocco/content/verbi-presente.json']);
+});
+
+test('a content map is handed to the Game under its own keys, in declaration order', async () => {
+  const backend = fakeFetch({
+    'http://example.test/giocco/content/a.json': [{ id: 'a' }],
+    'http://example.test/giocco/content/b.json': [],
+  });
+  const game = { ...noopGame, content: { words: './content/a.json', boards: './content/b.json' } };
+
+  const content = await loadContent(game, { base: 'http://example.test/giocco/', fetch: backend.fetch });
+
+  assert.deepEqual(content, { words: [{ id: 'a' }], boards: [] });
+  assert.deepEqual(backend.calls, [
+    'http://example.test/giocco/content/a.json',
+    'http://example.test/giocco/content/b.json',
+  ]);
+});
+
+test('a Game declaring no content fetches nothing and gets null', async () => {
+  const backend = fakeFetch({});
+  assert.equal(await loadContent(noopGame, { base: 'http://example.test/', fetch: backend.fetch }), null);
+  assert.deepEqual(backend.calls, []);
+});
+
+test('a failed content fetch is a loud error, not a silent empty pool', async () => {
+  const backend = fakeFetch({});
+  const game = { ...noopGame, content: './content/missing.json' };
+  await assert.rejects(
+    loadContent(game, { base: 'http://example.test/giocco/', fetch: backend.fetch }),
+    /could not load \.\/content\/missing\.json \(404\)/,
+  );
+});
+
+// ------------------------------------------------------------- the Session contract
+test('the Session handed to play() has exactly the five documented properties', () => {
+  const content = [{ id: 'a', tags: ['reg:regular'] }, { id: 'b', tags: ['reg:irregular'] }];
+  const store = { items: {} };
+  const rng = createRng(1);
+
+  const session = createSession(fixtureGame, {
+    content,
+    settings: presetSettings(fixtureGame, 'a1'),
+    store,
+    rng,
+  });
+
+  assert.deepEqual(Object.keys(session), ['pool', 'content', 'settings', 'rng', 'store']);
+  assert.deepEqual(ids(session.pool), ['a'], 'the Pool arrives already filtered');
+  assert.equal(session.content, content, 'content is passed through untouched');
+  assert.equal(session.settings.preset, 'a1');
+  assert.equal(session.rng, rng, 'the injected RNG is the Session\'s RNG');
+  assert.equal(session.store, store, 'the Game\'s own store object, by identity');
+
+  for (const banned of ['record', 'award', 'score', 'progress', 'finish', 'chrome', 'save']) {
+    assert.equal(banned in session, false, `the Session offers no ${banned}()`);
+  }
+});
+
+test('a Session built from nothing but a Game is still the five-property object', () => {
+  const session = createSession(fixtureGame);
+  assert.deepEqual(Object.keys(session), ['pool', 'content', 'settings', 'rng', 'store']);
+  assert.deepEqual(session.pool, [], 'no content is an empty pool, which is a legal round for a Game with no content');
+  assert.equal(session.content, null);
+  assert.deepEqual(session.settings, defaultSettings(fixtureGame));
+  assert.equal(typeof session.rng, 'function');
+  assert.equal(session.store, null);
+});
+
+// ------------------------------------------------------------- content and the pool source
+test('the pool source is every array file a Game declared, concatenated in declaration order', () => {
+  assert.deepEqual(ids(itemsOf([{ id: 'a' }])), ['a'], 'a plain path is the file\'s own array');
+  assert.deepEqual(ids(itemsOf({ words: [{ id: 'a' }], boards: [{ id: 'b' }, { id: 'c' }] })), ['a', 'b', 'c']);
+  assert.deepEqual(itemsOf(null), []);
+  assert.deepEqual(itemsOf(undefined), []);
+  assert.deepEqual(itemsOf('./content/x.json'), [], 'a path that was never loaded is no pool');
+  assert.deepEqual(itemsOf({ words: { not: 'an array' } }), []);
+});
+
+test('the injectable RNG is deterministic per seed and always in range', () => {
+  const first = createRng(42);
+  const second = createRng(42);
+  const a = [first(), first(), first()];
+  const b = [second(), second(), second()];
+  assert.deepEqual(a, b, 'the same seed is the same sequence');
+  assert.ok(a.every((value) => value >= 0 && value < 1));
+
+  const other = createRng(43);
+  assert.notDeepEqual(a, [other(), other(), other()]);
+  assert.equal(createRng(), Math.random, 'the app gets the real RNG');
+  assert.throws(() => createRng(1.5), /integer/);
+});
+
+/** @returns {Promise<boolean>} true when every case passed */
+export async function runSanity() {
   let passed = 0;
   const failed = [];
   for (const { name, run } of cases) {
     try {
-      run();
+      await run();
       passed += 1;
       console.log(`  ok   ${name}`);
     } catch (error) {
@@ -313,5 +564,5 @@ export function runSanity() {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  process.exit(runSanity() ? 0 : 1);
+  runSanity().then((ok) => process.exit(ok ? 0 : 1));
 }
