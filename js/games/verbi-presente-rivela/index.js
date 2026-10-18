@@ -10,17 +10,27 @@
  * averaged — this Game reads and writes only its own `session.store`.
  *
  * The one thing they deliberately share is the *policy*: the weighted, without-replacement queue
- * (`weightedQueue`), the mastery read (`masteryOf`) and the round-count control (`roundCount`) are
- * imported from `../verbi-presente/index.js` rather than copied, so "the same queue policy as the
- * choice Game" is a fact of the code and not a hope. Nothing about those helpers reads a store
- * other than the one this Game hands them.
+ * (`weightedQueue`), the mastery read (`masteryOf`), the round-count control (`roundCount`) and the
+ * whole progress core (`recordAttempt`, `statisticsView`) are imported from
+ * `../verbi-presente/index.js` rather than copied, so "the same policy as the choice Game" is a
+ * fact of the code and not a hope. Nothing about those helpers reads a store other than the one
+ * this Game hands them: every one of them takes the store as an argument, so production progress
+ * is written into, and read from, `storage.store('verbi-presente-rivela')` alone — the two verb
+ * drills share one corpus and one policy and never share a number.
  *
  * The host handed over a filtered Pool and an RNG (`engine.js`); `roundLoop()` runs the
  * reveal/self-grade cycle; the store stays opaque to both.
  */
 
 import { roundLoop } from '../../lib/roundLoop.js';
-import { masteryOf, roundCount, weightedQueue } from '../verbi-presente/index.js';
+import {
+  POINTS_CORRECT,
+  masteryOf,
+  recordAttempt,
+  roundCount,
+  statisticsView,
+  weightedQueue,
+} from '../verbi-presente/index.js';
 
 /** @type {import('../../engine.js').Control} The shared round-count control every Game declares. */
 const ROUND_COUNT = {
@@ -96,6 +106,21 @@ export function revealQuestion(item) {
   return { prompt: item.prompt, answer: item.answer };
 }
 
+/** The statistics view's own action, exactly as the choice Game labels it. */
+const STATISTICS_LABEL = 'Statistics';
+
+/**
+ * A Game's `play()` has nowhere to inject a document, so its own chrome (the summary's Statistics
+ * action) and its statistics view draw with the global one — the same default `roundLoop()` itself
+ * uses, and guaranteed present by the time either runs. `tools/sanity.mjs` installs a fake with
+ * `withFakeDocument()`.
+ *
+ * @returns {Document}
+ */
+function activeDocument() {
+  return /** @type {Document} */ (globalThis.document);
+}
+
 /** @type {import('../../engine.js').Game} */
 const verbiPresenteRivela = {
   id: 'verbi-presente-rivela',
@@ -116,14 +141,78 @@ const verbiPresenteRivela = {
   play(root, session) {
     const host = /** @type {HTMLElement} */ (root);
     const items = /** @type {VerbItem[]} */ (session.pool);
+    // The statistics describe the Game, not the round: the views read the Game's whole current
+    // corpus, so a filtered round still shows every Tag and every attempted Item — and an Item the
+    // corpus no longer has is left out without its stored entry being deleted.
+    const corpus = Array.isArray(session.content) ? /** @type {VerbItem[]} */ (session.content) : items;
+    const store = session.store;
     const count = roundCount(session.settings);
     const rng = session.rng;
+
+    /**
+     * Which Item each drawn question asks. `sample()` is the only place a question is made, so this
+     * can never disagree with what the loop is showing.
+     * @type {WeakMap<object, VerbItem>}
+     */
+    const asked = new WeakMap();
+
     // `sample()` is the loop's only source of a queue, so Play again is always a fresh draw — and
     // mastery is read at draw time from this Game's own store, which is what keeps its progress
     // separate from `verbi-presente` despite the shared Items.
     const sample = () =>
-      roundQueue(items, { size: count, rng, store: session.store }).map(revealQuestion);
-    return roundLoop(host, { mode: 'reveal', sample }).teardown;
+      roundQueue(items, { size: count, rng, store }).map((item) => {
+        const question = revealQuestion(item);
+        asked.set(question, item);
+        return question;
+      });
+
+    /** The round and the Game's statistics view: two views of the same Game, swapping in place. */
+    /** @type {HTMLElement | null} */
+    let round = null;
+    /** @type {{ section: HTMLElement, refresh: () => void } | null} */
+    let stats = null;
+
+    /** Show the Game's statistics, refreshed from this Game's store as it stands now. */
+    function showStats() {
+      if (round === null || stats === null) return;
+      stats.refresh();
+      round.hidden = true;
+      stats.section.hidden = false;
+    }
+
+    /** Back to that same round summary — not a route, and not a way out of the Game. */
+    function showSummary() {
+      if (round === null || stats === null) return;
+      stats.section.hidden = true;
+      round.hidden = false;
+    }
+
+    const loop = roundLoop(host, {
+      mode: 'reveal',
+      sample,
+      // The self-grade is recorded the moment the player gives it — through the shared US-017
+      // policy, into this Game's own store, over this Game's whole current corpus. The points it
+      // earned are what the summary adds up; a store-less Session still plays, it just forgets.
+      onAnswer: (question, correct) => {
+        const item = asked.get(question);
+        if (item === undefined) return correct ? POINTS_CORRECT : 0;
+        return recordAttempt(store, item, correct, { items: corpus });
+      },
+      // The Game's own action, between Play again and Done (the loop calls this once, at build).
+      summaryActions: (container) => {
+        const button = activeDocument().createElement('button');
+        button.type = 'button';
+        button.className = 'text-btn';
+        button.textContent = STATISTICS_LABEL;
+        button.addEventListener('click', showStats);
+        container.append(button);
+      },
+    });
+
+    round = loop.section;
+    stats = statisticsView(activeDocument(), { store, items: corpus, onSummary: showSummary });
+    host.append(stats.section);
+    return loop.teardown;
   },
 };
 

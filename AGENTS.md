@@ -94,7 +94,11 @@ round summary carries a Game-owned **Statistics** action beside Play again and D
 policy (`weightedQueue`, `masteryOf`, `roundCount`), draws the same weighted, without-replacement
 queue and hands `roundLoop()` `mode: 'reveal'` with `{ prompt, answer }` questions — one prompt,
 one *Show answer*, then the two self-grade labels, nothing red and no auto-advance. Mastery is
-read from *its own* `session.store`, so production progress never borrows recognition's.
+read from *its own* `session.store`, so production progress never borrows recognition's; since
+US-018 it also imports that Game's progress core (`recordAttempt`, `statisticsView`), so every
+self-grade is written the moment it is given, its summary carries a Game-owned **Statistics**
+action beside Play again and Done, and the four statistics sections are computed over production's
+store and the whole verb corpus alone.
 `nomi-plurale` declares its own `content`, `fields`, the four noun `dims` (`gender`, `plural`,
 `irreg`, `cefr`) and the three noun `presets` (US-015), so `content/nomi-plurale.json` — the
 hand-authored noun corpus, 13 plural patterns × five nouns = 65 Items — is gated against it, and
@@ -194,9 +198,10 @@ global document for the duration of such a case.
 host state: `recordAttempt(store, item, correct, { items, now })` writes one attempt into the
 store it is handed (`{ items: { <id>: { a, c, ema, last } }, points, days: [{ d, a, c, p }],
 weeks: [{ w, tags }] }`), and `statsFor(store, items, now)` returns the four sections' numbers.
-Both take the store as an argument, so `verbi-presente-rivela` and `nomi-plurale` reuse the same
-formulas over their own slices without sharing a number; `items` is the Game's *whole current
-corpus* (`session.content`), never the filtered Pool, so a filtered round cannot rewrite the views.
+Both take the store as an argument, so `verbi-presente-rivela` (US-018) and `nomi-plurale`
+reuse the same formulas over their own slices without sharing a number; `items` is the Game's
+*whole current corpus* (`session.content`), never the filtered Pool, so a filtered round cannot
+rewrite the views.
 The store proxy persists every write on the spot, so an attempt made mid-round survives the host
 back control. `statisticsView(doc, { store, items, onSummary })` is the view: it builds the four
 sections once and refreshes them by mutation (the `js/ui.js` rule), it is built hidden and swapped
