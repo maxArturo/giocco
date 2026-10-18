@@ -121,8 +121,18 @@ localStorage['giocco'] = {
 - One key, one envelope, one `migrate(v, data)` chain with a single entry point. Never a key per
   version, or every boot has to probe a set of them.
 - `settings` belongs to the host (which pool the player chose); `store` belongs to the Game.
+- `js/storage.js` hands out both as **live objects**: `settings(gameId)` and `store(gameId)`
+  return proxies whose writes (including deletes and deep `store.items[id].ema = …` updates) hit
+  `localStorage` on the spot. That is what makes "persisted on every write" true without putting
+  a callback or a `save()` method on the Game's five-field `session`. Slices are per-`id` objects
+  with stable identity, so one Game can never reach another Game's slice.
+- The backend is a parameter (`createStorage(backend = localStorage)`), which is how
+  `tools/sanity.mjs` drives the whole envelope without a DOM.
 - If the stored `v` is *newer* than the running code — an older build opened after a newer one —
-  the host must refuse to write rather than clobber it.
+  the host must refuse to write rather than clobber it. A blob that cannot be read at all (bad
+  JSON, not an envelope) is treated the same way: reads still work from memory, every write is
+  refused, and the blob is left byte-for-byte alone. A failed `setItem` (quota, Safari private
+  mode) also flips the session to memory-only instead of throwing.
 - Nothing is pruned. An **Item** removed from a content file keeps its entry, so re-adding it
   later restores the player's progress instead of silently deleting history.
 - There is no export and no import, deliberately (see `README.md`). Local storage on iOS is the

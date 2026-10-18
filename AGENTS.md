@@ -18,7 +18,7 @@ Repo map. Read the row before you touch that area.
 | `npm install` | Installs the only devDependency (`typescript`). No runtime dependencies, no test framework. |
 | `npm run check` | `node tools/check.mjs` — the structural gate over `content/*.json`. |
 | `npm run typecheck` | `npx tsc --noEmit` — type-checks `js/**` JavaScript without emitting files. |
-| `npm test` | `node tools/check.mjs --selftest` — the gate's own fixture suite. |
+| `npm test` | `node tools/check.mjs --selftest && node tools/sanity.mjs` — the gate's fixture suite, then the host modules' Node-level sanity suite. |
 | `python3 -m http.server 8000` | The local server every manual browser/device check uses. |
 
 `tools/check.mjs` imports `js/games/<id>/index.js` to read each Game's own declarations
@@ -32,9 +32,16 @@ A Game declares the exact Item field names in `fields` (default
 `['id', 'prompt', 'answer', 'distractors', 'tags']`); the gate rejects an Item with an extra or
 missing field. Extend `tools/selftest.mjs` (not a new framework) when adding a gate rule.
 
-Status: **shell + tooling and gates.** `index.html`, `styles.css`, `manifest.webmanifest`,
-`icons/`, `.nojekyll` and the `js/app.js` boot placeholder exist. `sw.js`, the host modules and
-`content/*.json` do not.
+Host modules that are DOM-free carry their deterministic checks in `tools/sanity.mjs` instead
+(`node tools/sanity.mjs`, also run by `npm test`); it imports `js/**` directly with plain
+`node:assert` cases. Anything that needs a DOM (boot, rendering, offline) is verified manually.
+Host modules that touch environment globals (`localStorage`) take them as injectable defaults
+so Node can drive them with a fake backend.
+
+Status: **host storage.** `index.html`, `styles.css`, `manifest.webmanifest`, `icons/`,
+`.nojekyll`, the `js/app.js` boot placeholder and `js/storage.js` (envelope, `migrate()`,
+per-Game settings + store) exist. `sw.js`, the rest of the host modules and `content/*.json`
+do not.
 
 ## Shell
 

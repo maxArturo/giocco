@@ -7,7 +7,7 @@
   "scripts": {
     "check": "node tools/check.mjs",
     "typecheck": "npx tsc --noEmit",
-    "test": "node tools/check.mjs --selftest"
+    "test": "node tools/check.mjs --selftest && node tools/sanity.mjs"
   },
   "devDependencies": {
     "typescript": "^7.0.2"
