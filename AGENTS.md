@@ -89,8 +89,11 @@ one *Show answer*, then the two self-grade labels, nothing red and no auto-advan
 read from *its own* `session.store`, so production progress never borrows recognition's.
 `nomi-plurale` declares its own `content`, `fields`, the four noun `dims` (`gender`, `plural`,
 `irreg`, `cefr`) and the three noun `presets` (US-015), so `content/nomi-plurale.json` — the
-hand-authored noun corpus, 13 plural patterns × five nouns = 65 Items — is now gated against it;
-its `play()` is still a no-op until US-016 lands the drill. The two verb modules also declare
+hand-authored noun corpus, 13 plural patterns × five nouns = 65 Items — is gated against it, and
+its `play()` now plays a real choice round (US-016): the same shared choice interaction as
+`verbi-presente`, whose draw policy it imports (`weightedQueue`/`masteryOf`/`shuffle`/`roundCount`)
+with its own `questionFor` for the noun Item shape, mastery read from its own store. The two
+verb modules also declare
 `content`, `fields`, `dims` and `presets` (US-012), so the one verb file is gated against both of
 them — their declarations must stay in step, which `tools/sanity.mjs` checks. The boot wiring is
 `js/app.js`: `boot()` registers `./sw.js`, fetches every registered Game's declared content, then

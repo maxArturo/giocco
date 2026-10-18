@@ -52,6 +52,10 @@ import verbiPresenteRivelaGame, {
   revealQuestion,
   roundQueue,
 } from '../js/games/verbi-presente-rivela/index.js';
+import nomiPluraleGame, {
+  questionFor as nounQuestionFor,
+  roundQueue as nounRoundQueue,
+} from '../js/games/nomi-plurale/index.js';
 import { boot } from '../js/app.js';
 
 /** Run `fn` with `console.warn` muted; storage warns on purpose for the blob cases. */
@@ -1105,7 +1109,7 @@ test('a hub card opens that Game’s settings route, and the back control return
   const session = { pool: [], content: null, settings: null, rng: Math.random, store: null };
 
   // The render a boot wires up: this is the composition the router owns — the real hub, the
-  // real settings screen, the real Game chrome — over a Game route whose Game does nothing yet.
+  // real settings screen, the real Game chrome — with the real noun Game playing its round.
   const router = createRouter({
     window: win,
     render: (route, host) => {
@@ -1147,8 +1151,12 @@ test('a hub card opens that Game’s settings route, and the back control return
   win.location.hash = byClass(root, 'game-card')[0].getAttribute('href');
   assert.deepEqual(router.current(), { name: 'settings', id: 'verbi-presente' });
 
-  router.navigate(gameHash('nomi-plurale')); // `Start round` is US-007's, but it lands here
-  assert.deepEqual(router.current(), { name: 'game', id: 'nomi-plurale' });
+  // `nomi-plurale` plays a real round now, and a Game's `play()` has nowhere to inject a
+  // `document`, so the loop reaches for the global one: this step installs the fake for it.
+  withFakeDocument(() => {
+    router.navigate(gameHash('nomi-plurale')); // `Start round` is US-007's, but it lands here
+    assert.deepEqual(router.current(), { name: 'game', id: 'nomi-plurale' });
+  });
 
   win.location.hash = byClass(root, 'back')[0].getAttribute('href');
   assert.equal(win.location.hash, HUB_HASH);
@@ -2652,6 +2660,200 @@ test('an empty reveal pool summarises as 0/0 instead of starting a round', () =>
     assert.equal(byClass(round, 'score')[0].textContent, '0/0');
     assert.equal(round.children[3].hidden, true, 'no question was ever asked');
     teardown();
+  });
+});
+
+// --------------------------------- the noun choice Game (js/games/nomi-plurale/index.js)
+
+/** A noun Item, the way the corpus hands one over. @param {string} id @param {number} [mastery] */
+const nounItem = (id, mastery = 0) => ({
+  id,
+  prompt: `il ${id} → i ___`,
+  answer: `${id}i`,
+  distractors: [`${id}o`, `${id}e`, `${id}a`],
+  tags: ['gender:m', 'plural:-o/-i'],
+  mastery,
+});
+
+/** The shipped noun corpus, read once: the Game's own Item mapping is checked against the real file. */
+const nounItems = JSON.parse(
+  readFileSync(fileURLToPath(new URL('../content/nomi-plurale.json', import.meta.url)), 'utf8'),
+);
+
+/** A whole noun round's Session, built the way boot builds one. @param {any[]} items */
+const nounSession = (items, count, extra = {}) =>
+  createSession(nomiPluraleGame, {
+    content: items,
+    settings: { preset: null, include: {}, controls: { count } },
+    rng: createRng(3),
+    store: null,
+    ...extra,
+  });
+
+test('the noun Game draws the same weighted, without-replacement queue', () => {
+  const today = epochDay();
+  const pool = [nounItem('libro', 0.9), nounItem('casa', 0), nounItem('cane', 0.5), nounItem('film', 0)];
+  const store = {
+    items: Object.fromEntries(pool.map((entry) => [entry.id, { ema: entry.mastery, last: today }])),
+  };
+
+  // The same Efraimidis–Spirakis key the verb Games use: with a constant RNG the draw order *is*
+  // the weight order, weakest first, ties kept in pool order.
+  const queue = nounRoundQueue(pool, { size: 4, rng: () => 0.5, store, today });
+  assert.deepEqual(queue.map((entry) => entry.id), ['casa', 'film', 'cane', 'libro']);
+
+  // The round length is the choice, clamped by the pool; no Item can repeat in a round.
+  assert.equal(nounRoundQueue(pool, { size: 20, rng: () => 0.5, store, today }).length, 4, 'min(count, pool)');
+  assert.deepEqual(nounRoundQueue([], { size: 5, rng: () => 0.5, store, today }), [], 'an empty pool has no queue');
+  for (const seed of [1, 7, 99]) {
+    const full = nounRoundQueue(pool, { size: 4, rng: createRng(seed), store, today });
+    assert.equal(full.length, 4);
+    assert.equal(new Set(full.map((entry) => entry.id)).size, 4, 'drawn without replacement');
+  }
+});
+
+test('the noun Game reads mastery from its own store, never a verb Game\u2019s', () => {
+  const backend = fakeBackend();
+  const storage = createStorage(backend);
+  const nounStore = storage.store('nomi-plurale');
+  const choiceStore = storage.store('verbi-presente');
+  const revealStore = storage.store('verbi-presente-rivela');
+  assert.equal(new Set([nounStore, choiceStore, revealStore]).size, 3, 'each Game id owns its own slice');
+
+  const today = epochDay();
+  const pool = [nounItem('libro'), nounItem('casa'), nounItem('cane'), nounItem('film')];
+  // Both verb Games have practiced different nouns; the noun Game has no history at all.
+  choiceStore.items = { libro: { ema: 1, last: today }, casa: { ema: 1, last: today } };
+  revealStore.items = { cane: { ema: 1, last: today } };
+
+  const draw = (/** @type {any} */ store) =>
+    nounRoundQueue(pool, { size: 4, rng: () => 0.5, store, today }).map((entry) => entry.id);
+  assert.deepEqual(draw(nounStore), ['libro', 'casa', 'cane', 'film'], 'an empty noun store leaves the pool order alone');
+  assert.deepEqual(draw(nounStore), draw(storage.store('nomi-plurale')), 'nothing leaked in from either verb Game');
+
+  // A write through one Game's slice is invisible in the other two, so the three sets of counters
+  // and the three histories can never be averaged together.
+  nounStore.items = { cane: { a: 2, c: 1, ema: 1, last: today } };
+  assert.equal(choiceStore.items.cane, undefined, 'noun progress stays out of recognition');
+  assert.deepEqual(revealStore.items.cane, { ema: 1, last: today }, 'production keeps its own cane');
+  assert.deepEqual(backend.envelope().data.games['nomi-plurale'].store.items, {
+    cane: { a: 2, c: 1, ema: 1, last: today },
+  });
+  assert.deepEqual(backend.envelope().data.games['verbi-presente'].store.items, {
+    libro: { ema: 1, last: today },
+    casa: { ema: 1, last: today },
+  });
+  assert.deepEqual(backend.envelope().data.games['verbi-presente-rivela'].store.items, {
+    cane: { ema: 1, last: today },
+  });
+
+  // And noun mastery, once written, weights the noun draw — the policy is live, not decorative.
+  assert.deepEqual(draw(nounStore), ['libro', 'casa', 'film', 'cane'], 'a mastered noun sinks to the end');
+});
+
+test('each noun question offers its own answer plus its three authored distractors', () => {
+  const libro = nounItems.find((entry) => entry.id === 'nomi-pl-libro');
+  assert.ok(libro, 'the corpus is the real one');
+  const question = nounQuestionFor(libro, createRng(5));
+  assert.equal(question.prompt, 'il libro → i ___');
+  assert.equal(question.answer, 'libri');
+  assert.equal(question.options.length, 4, 'four options per question, always');
+  assert.deepEqual(
+    [...question.options].sort(),
+    [libro.answer, ...libro.distractors].sort(),
+    'its own answer and its own three distractors',
+  );
+  assert.equal(new Set(question.options).size, 4, 'never a duplicated option');
+
+  // The order is drawn once, with the Session's RNG, so it is stable for that question.
+  assert.deepEqual(nounQuestionFor(libro, createRng(5)).options, question.options);
+
+  // Every shipped Item maps to a four-option question whose options are exactly its own, and the
+  // answer is not parked in the first row.
+  const rng = createRng(11);
+  let firstRowIsAnswer = 0;
+  for (const item of nounItems) {
+    const asked = nounQuestionFor(item, rng);
+    assert.equal(asked.options.length, 4, `${item.id} asks four options`);
+    assert.deepEqual([...asked.options].sort(), [item.answer, ...item.distractors].sort(), `${item.id} offers its own four`);
+    if (asked.options[0] === item.answer) firstRowIsAnswer += 1;
+  }
+  assert.ok(firstRowIsAnswer >= 6 && firstRowIsAnswer <= 33, `the answer started in row one ${firstRowIsAnswer}/65 times`);
+});
+
+test('the noun Game plays a choice round of the chosen length, judged in the loop', () => {
+  const pool = nounItems.slice(0, 8);
+  const session = nounSession(pool, 5);
+  assert.equal(session.pool.length, 8);
+
+  withFakeDocument((doc) => {
+    const root = doc.createElement('div');
+    const teardown = nomiPluraleGame.play(root, session);
+    const round = byClass(root, 'round')[0];
+    assert.ok(round, 'the Game draws the shared round markup');
+    assert.equal(round.getAttribute('data-state'), 'ask');
+    assert.equal(round.children[0].children[1].textContent, '1/5', 'the chosen five, not the pool of eight');
+    assert.equal(byClass(round, 'back').length, 0, 'the Game draws no quit control \u2014 the host owns that');
+
+    const options = nodesOf(round).filter((node) => node.tagName === 'BUTTON' && node.className.startsWith('opt'));
+    assert.equal(options.length, 4, 'four option rows exist before the first question is read');
+    const asked = pool.find((entry) => entry.prompt === round.children[1].textContent);
+    assert.ok(asked, 'the question is one of the pool\u2019s own Items');
+    const labels = options.map((button) => button.textContent);
+    assert.deepEqual([...labels].sort(), [asked.answer, ...asked.distractors].sort(), 'its own four options');
+
+    // The Game judges nothing itself: the shared loop reads the correct answer out of the option
+    // rows, which is why a wrong tap still shows `giusto: <answer>`.
+    const answerAt = labels.indexOf(asked.answer);
+    const wrongAt = labels.findIndex((label) => label !== asked.answer);
+    options[wrongAt].fire('click');
+    assert.equal(round.getAttribute('data-state'), 'feedback');
+    assert.equal(byClass(round, 'status')[0].textContent, `giusto: ${asked.answer}`);
+    assert.equal(options[answerAt].className, 'opt correct');
+    assert.equal(options[wrongAt].className, 'opt wrong');
+
+    // The host back control runs this teardown, so leaving a round mid-feedback cancels the
+    // pending advance and empties the node the Game was handed.
+    teardown();
+    assert.equal(root.children.length, 0);
+
+    // A right tap, over a one-Item pool: the loop judges a choice by `option === answer`, so the
+    // comments on screen are the documented Italian ones, not a Game-local vocabulary.
+    const one = nounItems.slice(0, 1);
+    const rightRoot = doc.createElement('div');
+    const rightTeardown = nomiPluraleGame.play(rightRoot, nounSession(one, 5));
+    const rightRound = byClass(rightRoot, 'round')[0];
+    assert.equal(rightRound.children[0].children[1].textContent, '1/1', 'min(count, pool), through the real round');
+    const answerButton = nodesOf(rightRound)
+      .filter((node) => node.tagName === 'BUTTON' && node.className.startsWith('opt'))
+      .find((button) => button.textContent === one[0].answer);
+    answerButton.fire('click');
+    assert.equal(rightRound.getAttribute('data-state'), 'feedback');
+    assert.equal(byClass(rightRound, 'status')[0].textContent, 'corretto');
+    rightTeardown();
+    assert.equal(rightRoot.children.length, 0);
+  });
+});
+
+test('a thin noun pool is the round, and an empty one summarises 0/0', () => {
+  withFakeDocument((doc) => {
+    const thin = doc.createElement('div');
+    const thinTeardown = nomiPluraleGame.play(thin, nounSession(nounItems.slice(0, 3), 20));
+    assert.equal(byClass(thin, 'round')[0].children[0].children[1].textContent, '1/3');
+    thinTeardown();
+
+    // The settings screen refuses to start an empty pool; if a round is entered anyway it
+    // summarises 0/0 instead of asking anything.
+    const empty = doc.createElement('div');
+    const emptyTeardown = nomiPluraleGame.play(empty, nounSession([], 10));
+    const round = byClass(empty, 'round')[0];
+    assert.equal(round.getAttribute('data-state'), 'summary');
+    assert.equal(byClass(round, 'score')[0].textContent, '0/0');
+    assert.ok(
+      nodesOf(round).filter((node) => node.className.startsWith('opt')).every((button) => button.textContent === ''),
+      'no question was ever asked',
+    );
+    emptyTeardown();
   });
 });
 
