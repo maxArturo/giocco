@@ -38,6 +38,13 @@ tools/check.mjs         dev-only structural gate; never shipped, never precached
    exist offline.
 4. `router.js` renders the current route.
 
+`js/app.js` is that whole sequence, and `boot()` is the browser path with nothing passed. It
+returns the pieces it built (`router`, `ui`, `storage`, `content`) so `tools/sanity.mjs` can
+drive a boot with a fake document, window, fetch, storage backend and Game list; the renderer it
+hands the router composes the host's screens with the loaded content and the live storage slices
+(on a Game route: `ui.gameScreen()` plus `game.play()`, both teardowns composed, so leaving the
+route always tears the round down).
+
 Nothing is validated at boot: `tools/check.mjs` already did that at author time, and re-running
 it in the browser would only slow down a load to catch a mistake that cannot ship.
 

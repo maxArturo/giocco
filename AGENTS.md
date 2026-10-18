@@ -38,13 +38,17 @@ Host modules that are DOM-free carry their deterministic checks in `tools/sanity
 that touch environment globals (`localStorage`) or the network (`fetch`) take them as injectable
 defaults so Node can drive them with a fake backend — `js/ui.js` takes `document` the same way,
 and the suite's `fakeDocument()` (create/append/attrs/`textContent`, plus `addEventListener` and a
-`fire(type)` helper) is what lets a screen's *structure* **and its taps** be checked in Node. What
+`fire(type)` helper) is what lets a screen's *structure* **and its taps** be checked in Node. Boot
+is covered the same way: `boot({ document, window, fetch, storage, games })` in `js/app.js` takes
+every environment global as an injectable default, so a case can prove fetch-before-render order,
+the cold-load redirect and the composed Game teardown without a browser. What
 a fake cannot see — layout, safe areas, focus order, hit targets under a thumb, offline — stays a
 manual browser/device check; the CSS minimum sizes are the one thing read out of `styles.css` by a
 case.
 
 Status: **host engine.** `index.html`, `styles.css`, `manifest.webmanifest`, `icons/`,
-`.nojekyll`, the `js/app.js` boot placeholder, `js/storage.js` (envelope, `migrate()`, per-Game
+`.nojekyll`, `js/app.js` (boot: registry → every registered content file → router/render),
+`js/storage.js` (envelope, `migrate()`, per-Game
 settings + store), `js/engine.js` (Pool filter, content loading, the five-property Session,
 injectable RNG, settings/Preset helpers), `js/registry.js` (the three permanent ids in
 display order, each importing its `js/games/<id>/index.js`), `js/router.js` (the three frozen
@@ -53,8 +57,10 @@ wordmark plus one card per Game linking to its settings route — the settings s
 route's chrome: a single back control to `#/` plus the empty node a Game draws into) exist. Those
 three Game modules are registration placeholders: they declare `id`, `title`, `description`, the
 shared round-count `controls` and a no-op `play()` until their drills, content declarations and
-`content/*.json` land. `sw.js`, `js/lib/*` and `content/*.json` do not exist yet, and nothing
-calls `createRouter()` or `createUi()` — the boot wiring is US-008's.
+`content/*.json` land. `sw.js`, `js/lib/*` and `content/*.json` do not exist yet, and the boot
+wiring is `js/app.js`: `boot()` fetches every registered Game's declared content, then hands
+`createRouter()` a renderer that composes the host's screens with that content and the live
+storage slices.
 
 ## Shell
 
@@ -63,9 +69,16 @@ the `/giocco/` subpath and from a root dev server unchanged. `manifest.webmanife
 `start_url: "./"`.
 - `styles.css` is the only stylesheet and holds every shared primitive (shell, hub, settings,
 the `roundLoop()` markup, statistics rows). There is no per-Game stylesheet and no build step.
-- `js/app.js` is a boot placeholder so the shell has no broken asset reference; the registry →
-content → router wiring lands there later. Service-worker registration is not in `index.html`
-yet — it arrives with `sw.js`.
+- `js/app.js` is boot, and the only module `index.html` loads: `boot(options)` imports the
+registry (which statically imports every Game, so the whole graph is fetched on the first online
+load), fetches every registered Game's declared content **before anything renders** — a Game
+fetched on first visit would silently not exist offline — and only then starts the router with a
+renderer that composes `ui.hub` / `ui.settingsScreen` / `ui.gameScreen` + `game.play()` with that
+content and the live `storage.settings`/`storage.store` slices. Nothing is validated at boot
+(`tools/check.mjs` is an author-time gate). Every environment global is an injected default
+(`document`, `window`, `fetch`, the storage backend, the Game list), so `tools/sanity.mjs` drives
+the whole boot with fakes while the browser runs the zero-argument `boot()`. Service-worker
+registration is still not in `index.html` — it arrives with `sw.js`.
 - `js/registry.js` statically imports every Game module and is the only place a Game is announced,
 so the whole Game graph is fetched and cached on the first online load; `js/engine.js` builds the
 Session from a Game's declaration without reading a single Item field but `tags`.

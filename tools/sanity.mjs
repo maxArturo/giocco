@@ -35,6 +35,7 @@ import {
   settingsHash,
 } from '../js/router.js';
 import { createUi } from '../js/ui.js';
+import { boot } from '../js/app.js';
 
 /** Run `fn` with `console.warn` muted; storage warns on purpose for the blob cases. */
 function quiet(fn) {
@@ -1403,6 +1404,214 @@ test('every registered Game declares the shared round-count control', () => {
     assert.deepEqual(count.options, [5, 10, 20], `${game.id} offers 5, 10 and 20`);
     assert.equal(count.default, 10, `${game.id} defaults to 10`);
     assert.equal(typeof count.label, 'string');
+  }
+});
+
+// ------------------------------------------------------------- boot (js/app.js)
+
+/** The deployed shape: a project subpath, so a relative content path has to resolve under it. */
+const SITE_BASE = 'http://site.test/giocco/';
+
+/**
+ * A content-bearing fixture Game. `play` records the Session it is handed and returns a
+ * teardown, the way a real drill will.
+ * @param {string} id
+ * @param {string | Record<string, string>} content
+ * @param {string[]} log
+ */
+function bootGame(id, content, log) {
+  return {
+    id,
+    title: `Game ${id}`,
+    description: `${id} description`,
+    content,
+    dims: [{ dim: 'a', values: ['x', 'y'] }],
+    controls: [{ id: 'count', label: 'Round', options: [5, 10, 20], default: 10 }],
+    play(root, session) {
+      log.push(`play:${id}`);
+      log.push(`keys:${Object.keys(session).sort().join(',')}`);
+      log.push(`pool:${session.pool.map((entry) => entry.id).sort().join(',')}`);
+      root.textContent = id;
+      return () => log.push(`teardown:${id}`);
+    },
+  };
+}
+
+/** Boot's own harness: a fake document, a fake window and a fetch recording both URL and order. */
+function bootHarness({ hash = HUB_HASH, games, routes = {}, base = SITE_BASE } = {}) {
+  const doc = fakeDocument();
+  const root = doc.createElement('div');
+  const win = fakeWindow(hash);
+  const { fetch, calls } = fakeFetch(routes);
+  /** The root's child count at each fetch, which is how "content before render" is proven. */
+  const during = [];
+  const spy = async (/** @type {string} */ url) => {
+    during.push(root.children.length);
+    return fetch(url);
+  };
+  return { doc, root, win, fetch: spy, calls, during, games, base };
+}
+
+test('boot fetches every registered Game’s content, in declaration order, before it renders', async () => {
+  const log = [];
+  const harness = bootHarness({
+    games: [
+      bootGame('one', './content/one.json', log),
+      bootGame('two', { words: './content/two-words.json', boards: './content/two-boards.json' }, log),
+    ],
+    routes: {
+      [`${SITE_BASE}content/one.json`]: [item('one-1', ['a:x'])],
+      [`${SITE_BASE}content/two-words.json`]: [item('two-1', ['a:x'])],
+      [`${SITE_BASE}content/two-boards.json`]: [item('two-2', ['a:y'])],
+    },
+  });
+
+  const app = await boot({
+    document: harness.doc,
+    window: harness.win,
+    root: harness.root,
+    storage: createStorage(fakeBackend()),
+    games: harness.games,
+    fetch: harness.fetch,
+    base: harness.base,
+  });
+
+  assert.deepEqual(
+    harness.calls,
+    [
+      `${SITE_BASE}content/one.json`,
+      `${SITE_BASE}content/two-words.json`,
+      `${SITE_BASE}content/two-boards.json`,
+    ],
+    'every declared file, keyed map included, in declaration order',
+  );
+  assert.deepEqual(harness.during, [0, 0, 0], 'nothing renders while content is still loading');
+  assert.deepEqual(Object.keys(app.content), ['one', 'two']);
+  assert.deepEqual(app.content.two, {
+    words: [item('two-1', ['a:x'])],
+    boards: [item('two-2', ['a:y'])],
+  });
+  assert.deepEqual(app.router.current(), { name: 'hub', id: null }, 'the hub renders after content');
+  assert.equal(byClass(harness.root, 'hub').length, 1);
+  assert.deepEqual(log, [], 'no Game ran a round just because boot loaded its content');
+});
+
+test('a cold Game URL boots onto that Game’s settings screen with the loaded content', async () => {
+  const log = [];
+  const harness = bootHarness({
+    hash: gameHash('one'),
+    games: [bootGame('one', './content/one.json', log)],
+    routes: { [`${SITE_BASE}content/one.json`]: [item('one-1', ['a:x']), item('one-2', ['a:y'])] },
+  });
+
+  const app = await boot({
+    document: harness.doc,
+    window: harness.win,
+    root: harness.root,
+    storage: createStorage(fakeBackend()),
+    games: harness.games,
+    fetch: harness.fetch,
+    base: harness.base,
+  });
+
+  assert.deepEqual(app.router.current(), { name: 'settings', id: 'one' });
+  assert.equal(harness.win.location.hash, settingsHash('one'), 'a cold round URL is replaced');
+  assert.equal(harness.win.replaceCalls.length, 1);
+  assert.deepEqual(byTag(harness.root, 'h1').map((node) => node.textContent), ['Game one']);
+  assert.equal(
+    byClass(harness.root, 'eligible')[0].textContent,
+    '2 eligible items',
+    'the settings screen counts the Items boot loaded',
+  );
+  assert.deepEqual(log, [], 'a cold Game load never starts a round');
+});
+
+test('a Game route gets the five-property Session, and leaving it tears the round down', async () => {
+  const log = [];
+  /** The Session the Game's `play()` was handed, captured for the persistence check. @type {any} */
+  let session = null;
+  const game = {
+    id: 'one',
+    title: 'Game one',
+    content: './content/one.json',
+    dims: [{ dim: 'a', values: ['x', 'y'] }],
+    controls: [{ id: 'count', label: 'Round', options: [5, 10, 20], default: 10 }],
+    play(root, handed) {
+      log.push('play:one');
+      log.push(`keys:${Object.keys(handed).sort().join(',')}`);
+      log.push(`pool:${handed.pool.map((entry) => entry.id).sort().join(',')}`);
+      session = handed;
+      return () => log.push('teardown:one');
+    },
+  };
+  const backend = fakeBackend();
+  const harness = bootHarness({
+    hash: settingsHash('one'), // Start round is the only way in, so the settings route comes first
+    games: [game],
+    routes: { [`${SITE_BASE}content/one.json`]: [item('one-1', ['a:x']), item('one-2', ['a:y'])] },
+  });
+
+  const app = await boot({
+    document: harness.doc,
+    window: harness.win,
+    root: harness.root,
+    storage: createStorage(backend),
+    games: harness.games,
+    fetch: harness.fetch,
+    base: harness.base,
+  });
+
+  assert.equal(
+    byClass(harness.root, 'eligible')[0].textContent,
+    '2 eligible items',
+    'the settings route counted the Items boot loaded',
+  );
+
+  harness.win.location.hash = gameHash('one');
+  assert.deepEqual(app.router.current(), { name: 'game', id: 'one' });
+  assert.deepEqual(log, ['play:one', 'keys:content,pool,rng,settings,store', 'pool:one-1,one-2']);
+  assert.equal(byClass(harness.root, 'game')[0].getAttribute('data-game'), 'one');
+  assert.equal(byClass(harness.root, 'back')[0].getAttribute('href'), HUB_HASH);
+  assert.equal(harness.calls.length, 1, 'content is fetched at boot, never on the Game visit');
+
+  // Both slices are live, so a Game's write lands in localStorage on the spot and no host API
+  // is needed for it — the same storage rule the host modules already follow.
+  session.store.last = 3;
+  session.settings.controls.count = 20;
+  const envelope = backend.envelope();
+  assert.equal(envelope.v, VERSION);
+  assert.deepEqual(envelope.data.games.one, {
+    settings: { preset: null, include: { a: ['x', 'y'] }, controls: { count: 20 } },
+    store: { last: 3 },
+  });
+
+  harness.win.location.hash = HUB_HASH; // the host back control's own href
+  assert.deepEqual(log.slice(3), ['teardown:one'], 'leaving the Game runs its teardown');
+  assert.equal(byClass(harness.root, 'hub').length, 1);
+});
+
+test('boot fails loudly without a document or the #app root node', async () => {
+  await assert.rejects(() => boot({ document: undefined }), /document is required/);
+  await assert.rejects(
+    () => boot({ document: { createElement: () => ({}), getElementById: () => null } }),
+    /#app root node/,
+  );
+});
+
+test('the shell hands boot one #app root and one module entry, and boot’s imports stay relative', () => {
+  const html = readFileSync(fileURLToPath(new URL('../index.html', import.meta.url)), 'utf8');
+  assert.match(html, /<div id="app"><\/div>/);
+  const scripts = [...html.matchAll(/<script\b[^>]*>/g)].map((match) => match[0]);
+  assert.equal(scripts.length, 1, 'one module entry, no second script tag');
+  assert.match(scripts[0], /type="module"/);
+  assert.match(scripts[0], /src="\.\/js\/app\.js"/);
+
+  const source = readFileSync(fileURLToPath(new URL('../js/app.js', import.meta.url)), 'utf8');
+  const specifiers = [...source.matchAll(/from\s+'([^']+)'/g)].map((match) => match[1]);
+  assert.ok(specifiers.length > 0, 'boot has a module graph');
+  for (const specifier of specifiers) {
+    assert.ok(specifier.startsWith('./'), `${specifier} is relative to the deployed subpath`);
+    assert.doesNotMatch(specifier, /tools|check/, `${specifier} is not the development gate`);
   }
 });
 
