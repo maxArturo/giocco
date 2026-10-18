@@ -38,6 +38,7 @@ import {
 } from '../js/router.js';
 import { createUi } from '../js/ui.js';
 import { CORRECT_DELAY, MAX_MISSES, TAP_GUARD, WRONG_DELAY, roundLoop } from '../js/lib/roundLoop.js';
+import { bars, sparkline } from '../js/lib/charts.js';
 import { boot } from '../js/app.js';
 
 /** Run `fn` with `console.warn` muted; storage warns on purpose for the blob cases. */
@@ -2064,6 +2065,162 @@ test('the round loop\u2019s reserved space and sizes live in the one stylesheet'
     css,
     /\[data-state="selfGrade"\]:not\(\[data-grade\]\) \.status\s*\{[^}]*color:\s*var\(--ok\)/,
     'the revealed answer is green',
+  );
+});
+
+// ----------------------------------------------------------------- the charts (js/lib/charts.js)
+
+/**
+ * A deliberately small well-formedness check for the strings `charts.js` returns: one root `<svg>`
+ * element, every tag opened and closed in order, every attribute quoted with no `<` inside it, and
+ * no stray text or angle bracket anywhere. It is not an XML parser — it is enough to catch a chart
+ * that emits broken markup, which is all a string-returning helper can get wrong.
+ * @param {string} svg
+ */
+function assertWellFormedSvg(svg) {
+  assert.match(svg, /^<svg\b[^>]*>[\s\S]*<\/svg>$/, 'exactly one root <svg> element');
+  /** @type {string[]} */
+  const open = [];
+  const tag = /<\/?([a-z][\w:-]*)((?:\s+[\w:-]+="[^"<>]*")*)\s*(\/?)>/g;
+  let cursor = 0;
+  for (const match of svg.matchAll(tag)) {
+    assert.equal(match.index, cursor, `no stray text before ${match[0]}`);
+    cursor = /** @type {number} */ (match.index) + match[0].length;
+    const [, name, , selfClosing] = match;
+    if (match[0].startsWith('</')) assert.equal(open.pop(), name, `</${name}> closes what is open`);
+    else if (!selfClosing) open.push(name);
+  }
+  assert.equal(cursor, svg.length, 'nothing after the root element');
+  assert.deepEqual(open, [], 'every element is closed');
+}
+
+/** The `points` attribute of a sparkline, as `[x, y]` number pairs. @param {string} svg */
+function pointsOf(svg) {
+  const attr = /points="([^"]*)"/.exec(svg);
+  assert.ok(attr, 'the sparkline carries points');
+  return attr[1].split(' ').map((pair) => pair.split(',').map(Number));
+}
+
+/** The `<rect>` attributes of a bars row, in document order. @param {string} svg */
+function rectsOf(svg) {
+  return [...svg.matchAll(/<rect\b([^>]*)\/>/g)].map(([, attrs]) =>
+    Object.fromEntries([...attrs.matchAll(/([\w-]+)="([^"]*)"/g)].map(([, k, v]) => [k, v])),
+  );
+}
+
+/** A chart never carries text, so it is never the only carrier of meaning. @param {string} svg */
+function assertSilent(svg) {
+  assert.match(svg, /aria-hidden="true"/, 'a chart is aria-hidden');
+  assert.doesNotMatch(svg, /<text\b/, 'no text inside the SVG');
+  assert.doesNotMatch(svg, />[^<>]*[a-zA-Z]{2,}[^<>]*</, 'no text node inside the SVG');
+  assert.doesNotMatch(svg, /NaN|undefined/, 'no arithmetic leaked into the markup');
+}
+
+test('a sparkline is a line for two or more points, and nothing at all for fewer', () => {
+  assert.equal(sparkline([]), '', 'an empty series has no chart');
+  assert.equal(sparkline([4]), '', 'one point is not a line');
+  assert.equal(sparkline(null), '', 'and neither is a series that is not a series');
+
+  const rising = sparkline([0, 5, 10]);
+  assertSilent(rising);
+  assertWellFormedSvg(rising);
+  assert.match(rising, /viewBox="0 0 300 56"/, 'the documented default box');
+  assert.match(rising, /class="spark"/);
+  assert.match(rising, /preserveAspectRatio="none"/, 'the line stretches to the width it is given');
+  assert.match(rising, /fill="none" stroke="currentColor"/, 'the line takes the accent from CSS');
+  assert.match(rising, /vector-effect="non-scaling-stroke"/, 'a stretched line keeps its 2px weight');
+
+  const points = pointsOf(rising);
+  assert.deepEqual(points, [
+    [0, 54],
+    [150, 28],
+    [300, 2],
+  ]);
+  for (const [x, y] of points) {
+    assert.ok(Number.isFinite(x) && x >= 0 && x <= 300, `${x} is inside the box`);
+    assert.ok(Number.isFinite(y) && y >= 0 && y <= 56, `${y} is inside the box`);
+  }
+
+  assert.match(sparkline([1, 2], { w: 100, h: 20 }), /viewBox="0 0 100 20"/, 'the size is the caller\u2019s');
+  assertSilent(sparkline([1, 2], { w: 100, h: 20 }));
+});
+
+test('a flat sparkline is a straight line, never a division by zero', () => {
+  const flat = sparkline([7, 7, 7]);
+
+  assertSilent(flat);
+  assertWellFormedSvg(flat);
+  const ys = pointsOf(flat).map(([, y]) => y);
+  assert.deepEqual(ys, [54, 54, 54], 'every value maps to one height, and it is finite');
+  assert.deepEqual(pointsOf(flat).map(([x]) => x), [0, 150, 300], 'x still spans the width');
+
+  // A series whose span is real but whose values are large and near each other still draws.
+  const tight = sparkline([1000, 1001, 1000.5]);
+  assertSilent(tight);
+  assert.ok(pointsOf(tight).every(([, y]) => y >= 0 && y <= 56), 'still inside the box');
+});
+
+test('a bars row is one rect per value, clamped into the viewBox', () => {
+  assert.equal(bars([]), '', 'an empty series has no chart');
+  assert.equal(bars(null), '');
+
+  const pcts = bars([0, 50, 100]);
+  assertSilent(pcts);
+  assertWellFormedSvg(pcts);
+  assert.match(pcts, /viewBox="0 0 240 34"/, 'three 6px bars, two 8px gaps');
+  assert.match(pcts, /height="34"/, 'the SVG keeps its own height, whatever width CSS gives it');
+  assert.match(pcts, /fill="currentColor"/, 'bars take the accent from CSS');
+  assert.deepEqual(rectsOf(pcts), [
+    { x: '0', y: '0', width: '0.0', height: '6', rx: '3' },
+    { x: '0', y: '14', width: '120.0', height: '6', rx: '3' },
+    { x: '0', y: '28', width: '240.0', height: '6', rx: '3' },
+  ]);
+
+  assert.deepEqual(
+    rectsOf(bars([-20, 150])).map((rect) => rect.width),
+    ['0.0', '240.0'],
+    'outside 0..100 clamps to an empty or a full bar',
+  );
+  assert.deepEqual(
+    rectsOf(bars([5], { min: 0, max: 10, w: 100 })).map((rect) => rect.width),
+    ['50.0'],
+    'min/max map the range onto the width',
+  );
+  assert.deepEqual(
+    rectsOf(bars([5, 4], { min: 5, max: 5 })).map((rect) => rect.width),
+    ['240.0', '0.0'],
+    'an empty range is the ceiling, not a division by zero',
+  );
+
+  const single = bars([42]);
+  assertWellFormedSvg(single);
+  assert.equal(rectsOf(single).length, 1, 'one bar for one value');
+  assert.match(single, /viewBox="0 0 240 6"/, 'a single bar is exactly h tall');
+});
+
+test('charts.js pulls in nothing and reads no app state', () => {
+  const source = readFileSync(fileURLToPath(new URL('../js/lib/charts.js', import.meta.url)), 'utf8');
+
+  assert.match(source, /^\/\/ @ts-check/, 'under the type gate like every js/** file');
+  assert.doesNotMatch(source, /^\s*import\s/m, 'no dependency, not even a host module');
+  assert.doesNotMatch(source, /\b(document|window|localStorage|fetch)\b/, 'no environment global');
+  assert.doesNotMatch(
+    source,
+    /\b(session|settings|store|pool|store\.|host)\b/,
+    'a chart reads no host or Game state',
+  );
+});
+
+test('the chart sizing lives in the one stylesheet', () => {
+  assert.match(cssBlock('.spark'), /width:\s*100%/, 'a line fills the column');
+  assert.match(cssBlock('.spark'), /height:\s*56px/, 'the documented 56px line height');
+  assert.match(cssBlock('.spark'), /color:\s*var\(--accent\)/, 'the line is the accent');
+  assert.match(cssBlock('.bars'), /width:\s*100%/, 'a bar fills its row');
+  assert.match(cssBlock('.bars'), /color:\s*var\(--accent\)/, 'the bars are the accent');
+  assert.doesNotMatch(
+    cssBlock('.bars'),
+    /height:/,
+    'a bars row keeps the height it was handed, not one CSS guesses',
   );
 });
 

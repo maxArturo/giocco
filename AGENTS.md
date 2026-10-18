@@ -48,9 +48,12 @@ every documented strategy (precache list, navigation fallback, network-first app
 stale-while-revalidate) is asserted without a browser — see `swHarness()` in `tools/sanity.mjs`.
 `js/lib/roundLoop.js` is the third shape: its `document`, `setTimeout`, `clearTimeout` and `now`
 are injectable defaults, so a case drives the whole cycle — including its three timings — over the
-same `fakeDocument()`. What a fake cannot see — layout, safe areas, focus order, hit targets under
-a thumb, offline — stays a manual browser/device check; the CSS minimum sizes are the one thing
-read out of `styles.css` by a case.
+same `fakeDocument()`. `js/lib/charts.js` is a fourth: two pure functions that turn an array of
+numbers into an inline-SVG **string** (`sparkline()`, `bars()`), with nothing injected and no DOM,
+so a case asserts the geometry, the clamping and the well-formedness of that string directly. What
+a fake cannot see — layout, safe areas, focus order, hit targets under a thumb, offline, or how a
+chart actually looks at its rendered size — stays a manual browser/device check; the CSS minimum
+sizes are the one thing read out of `styles.css` by a case.
 
 Status: **host engine.** `index.html`, `styles.css`, `manifest.webmanifest`, `icons/`,
 `.nojekyll`, `sw.js` (the classic service worker: the four-URL shell precache, the three fetch
@@ -64,7 +67,8 @@ hash routes, cold-load and unknown-route redirects, screen teardown), `js/ui.js`
 wordmark plus one card per Game linking to its settings route — the settings screen, and the Game
 route's chrome: a single back control to `#/` plus the empty node a Game draws into) and
 `js/lib/roundLoop.js` (the shared question cycle a Game opts into — ask → feedback/self-grade →
-advance → summary, plus its teardown) exist. Those three Game modules are registration
+advance → summary, plus its teardown) and `js/lib/charts.js` (the two dependency-free inline-SVG
+chart helpers a Game's own statistics view draws with) exist. Those three Game modules are registration
 placeholders: they declare `id`, `title`, `description`, the
 shared round-count `controls` and a no-op `play()` until their drills, content declarations and
 `content/*.json` land. `content/*.json` does not exist yet, and the boot wiring is
@@ -142,6 +146,15 @@ with `preventScroll` on every ask, and returns `{ section, state(), teardown() }
 clock injectables are what let `tools/sanity.mjs` assert the 700/1400 ms auto-advance, the 250 ms
 tap guard and the 250 ms self-grade confirm. `styles.css` pins `[hidden] { display: none
 !important }`, because the loop hides nodes that carry their own `display` rule.
+- `js/lib/charts.js` is the Game-side statistics decoration and imports nothing: `sparkline(vals,
+{ w, h })` returns an inline-SVG string for two or more values and `''` for fewer, and `bars(vals,
+{ w, h, gap, min, max })` returns one `h`-tall clamped rect per value (defaults 6px tall, 8px
+apart, mapped over 0..100). Both are `aria-hidden="true"` and carry no text, so the caller owes an
+adjacent written summary, and both are laid out by the caller: `.spark` takes its height from
+`styles.css`, `.bars` carries the total as its `height` attribute and only fills the column's
+width, so `preserveAspectRatio="none"` stretches bars horizontally without changing their 6px
+weight. A chart string is for a Game's own statistics view; the round loop still never touches
+`innerHTML`.
 
 To check the shell the way it is deployed, symlink the repo into a parent directory and serve
 that (`ln -s $PWD /tmp/serve/giocco && cd /tmp/serve && python3 -m http.server 8001`), then load

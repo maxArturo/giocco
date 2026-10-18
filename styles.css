@@ -639,10 +639,21 @@ button {
   font-weight: 600;
 }
 
+/*
+ * The two `js/lib/charts.js` helpers, both inline SVG a Game appends into its own view. `.spark`
+ * takes its height here; `.bars` carries its own as an attribute (one rect per value) and only
+ * needs to fill the column's width, so a bar keeps its 6px height whatever the width.
+ */
 .spark {
   display: block;
   width: 100%;
   height: 56px;
+  color: var(--accent);
+}
+
+.bars {
+  display: block;
+  width: 100%;
   color: var(--accent);
 }
 
