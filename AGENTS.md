@@ -69,11 +69,17 @@ route's chrome: a single back control to `#/` plus the empty node a Game draws i
 `js/lib/roundLoop.js` (the shared question cycle a Game opts into — ask → feedback/self-grade →
 advance → summary, plus its teardown) and `js/lib/charts.js` (the two dependency-free inline-SVG
 chart helpers a Game's own statistics view draws with) exist, and `content/verbi-presente.json`
-(the hand-authored verb corpus: 20 lexemes × six persons = 120 Items) now ships. Those three
-Game modules are registration placeholders: they declare `id`, `title`, `description`, the
-shared round-count `controls` and a no-op `play()` until their drills land; the two verb modules
-also declare `content`, `fields`, `dims` and `presets` (US-012), so the one verb file is gated
-against both of them — their declarations must stay in step, which `tools/sanity.mjs` checks.
+(the hand-authored verb corpus: 20 lexemes × six persons = 120 Items) now ships.
+`js/games/verbi-presente/index.js` plays a real round (US-013): a weighted draw of
+`min(chosen count, pool.length)` distinct Items, each asked with its own answer plus its three
+authored distractors in a shuffled four-option set, handed to `roundLoop()` in `choice` mode.
+Its named exports (`weightedQueue`, `questionFor`, `itemWeight`, `masteryOf`, `epochDay`,
+`shuffle`, `roundCount`) are the draw policy `verbi-presente-rivela` and `nomi-plurale` reuse.
+`verbi-presente-rivela` and `nomi-plurale` are still registration placeholders: they declare
+`id`, `title`, `description`, the shared round-count `controls` and a no-op `play()` until their
+drills land; the two verb modules also declare `content`, `fields`, `dims` and `presets`
+(US-012), so the one verb file is gated against both of them — their declarations must stay in
+step, which `tools/sanity.mjs` checks.
 `content/nomi-plurale.json` does not exist yet, and the boot wiring is
 `js/app.js`: `boot()` registers `./sw.js`, fetches every registered Game's declared content, then
 hands `createRouter()` a renderer that composes the host's screens with that content and the live
@@ -149,6 +155,18 @@ with `preventScroll` on every ask, and returns `{ section, state(), teardown() }
 clock injectables are what let `tools/sanity.mjs` assert the 700/1400 ms auto-advance, the 250 ms
 tap guard and the 250 ms self-grade confirm. `styles.css` pins `[hidden] { display: none
 !important }`, because the loop hides nodes that carry their own `display` rule.
+- `js/games/verbi-presente/index.js` is the first Game with a real round, and it is the one place
+the choice drill's policy lives: the queue is a weighted draw *without replacement* over
+`session.pool`, one key `u ** (1 / weight)` per Item (Efraimidis–Spirakis) sorted descending — so
+`weight = (1 - mastery) + 0.2` with a constant RNG makes the draw order *be* the weight order,
+which is how a case asserts the weighting deterministically — clamped to
+`min(settings.controls.count, pool.length)`. Mastery is read from the Game's own store
+(`masteryOf`) and is 0 for an unseen Item, so an empty store draws uniformly and a future
+`onAnswer` that writes `{ a, c, ema, last }` makes weak Items come up more often with no change
+to the draw. Option order is drawn once per question with `session.rng`, never re-shuffled while
+the question is on screen. `roundLoop()` needs a `document` and a Game's `play(root, session)` has
+no place to inject one, so `tools/sanity.mjs`'s `withFakeDocument()` installs the fake as the
+global document for the duration of such a case.
 - `js/lib/charts.js` is the Game-side statistics decoration and imports nothing: `sparkline(vals,
 { w, h })` returns an inline-SVG string for two or more values and `''` for fewer, and `bars(vals,
 { w, h, gap, min, max })` returns one `h`-tall clamped rect per value (defaults 6px tall, 8px

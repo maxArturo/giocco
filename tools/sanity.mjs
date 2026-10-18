@@ -39,6 +39,15 @@ import {
 import { createUi } from '../js/ui.js';
 import { CORRECT_DELAY, MAX_MISSES, TAP_GUARD, WRONG_DELAY, roundLoop } from '../js/lib/roundLoop.js';
 import { bars, sparkline } from '../js/lib/charts.js';
+import verbiPresenteGame, {
+  epochDay,
+  itemWeight,
+  masteryOf,
+  questionFor,
+  roundCount,
+  shuffle,
+  weightedQueue,
+} from '../js/games/verbi-presente/index.js';
 import { boot } from '../js/app.js';
 
 /** Run `fn` with `console.warn` muted; storage warns on purpose for the blob cases. */
@@ -896,6 +905,24 @@ function fakeDocument() {
   return { createElement };
 }
 
+/**
+ * Run `fn` with the fake document installed as the global one. A real Game's `play()` reaches
+ * `roundLoop()` without a document, exactly as it does in the browser, so this is the seam that
+ * lets a case drive a round the way the app does; the global is restored either way.
+ * @template T @param {(doc: any) => T} fn
+ * @returns {T}
+ */
+function withFakeDocument(fn) {
+  const previous = globalThis.document;
+  globalThis.document = fakeDocument();
+  try {
+    return fn(globalThis.document);
+  } finally {
+    if (previous === undefined) delete globalThis.document;
+    else globalThis.document = previous;
+  }
+}
+
 /** Every node under and including `root`, in document order. @param {any} root */
 const nodesOf = (root) => [root, ...root.children.flatMap(nodesOf)];
 
@@ -1339,60 +1366,63 @@ test('Start round is the only control that enters the Game route', () => {
 });
 
 test('Start round on the settings route enters the Game route through the router', () => {
-  const doc = fakeDocument();
-  const ui = createUi(doc);
-  const root = doc.createElement('div');
-  const win = fakeWindow(HUB_HASH);
-  /** @type {string[]} */
-  const log = [];
-  const settings = { preset: null, include: {}, controls: {} };
+  // The Game route below runs the real registered Game, whose round needs the global document.
+  withFakeDocument(() => {
+    const doc = fakeDocument();
+    const ui = createUi(doc);
+    const root = doc.createElement('div');
+    const win = fakeWindow(HUB_HASH);
+    /** @type {string[]} */
+    const log = [];
+    const settings = { preset: null, include: {}, controls: {} };
 
-  const router = createRouter({
-    window: win,
-    render: (route, host) => {
-      const game = gameById(route.id);
-      if (route.name === 'hub') {
-        log.push('hub');
-        ui.hub(root);
-        return;
-      }
-      if (route.name === 'game') {
-        log.push(`game:${route.id}`);
-        const { playRoot, teardown } = ui.gameScreen(root, game);
-        const done = game.play(playRoot, { pool: [], content: null, settings, rng: Math.random, store: null });
+    const router = createRouter({
+      window: win,
+      render: (route, host) => {
+        const game = gameById(route.id);
+        if (route.name === 'hub') {
+          log.push('hub');
+          ui.hub(root);
+          return;
+        }
+        if (route.name === 'game') {
+          log.push(`game:${route.id}`);
+          const { playRoot, teardown } = ui.gameScreen(root, game);
+          const done = game.play(playRoot, { pool: [], content: null, settings, rng: Math.random, store: null });
+          return () => {
+            done();
+            teardown();
+            log.push(`teardown game:${route.id}`);
+          };
+        }
+        log.push(`settings:${route.id}`);
+        const teardown = ui.settingsScreen(root, settingsGame, {
+          settings,
+          items: settingsItems,
+          navigate: host.navigate,
+        });
         return () => {
-          done();
           teardown();
-          log.push(`teardown game:${route.id}`);
+          log.push(`teardown settings:${route.id}`);
         };
-      }
-      log.push(`settings:${route.id}`);
-      const teardown = ui.settingsScreen(root, settingsGame, {
-        settings,
-        items: settingsItems,
-        navigate: host.navigate,
-      });
-      return () => {
-        teardown();
-        log.push(`teardown settings:${route.id}`);
-      };
-    },
+      },
+    });
+
+    router.start();
+    win.location.hash = settingsHash('verbi-presente'); // the hub card's own href
+    assert.deepEqual(router.current(), { name: 'settings', id: 'verbi-presente' });
+    assert.equal(byClass(root, 'eligible')[0].textContent, '26 eligible items');
+
+    byClass(root, 'start')[0].fire('click');
+    assert.equal(win.location.hash, gameHash('verbi-presente'), 'Start round is the only way in');
+    assert.deepEqual(router.current(), { name: 'game', id: 'verbi-presente' });
+    assert.deepEqual(log, [
+      'hub',
+      'settings:verbi-presente',
+      'teardown settings:verbi-presente',
+      'game:verbi-presente',
+    ]);
   });
-
-  router.start();
-  win.location.hash = settingsHash('verbi-presente'); // the hub card's own href
-  assert.deepEqual(router.current(), { name: 'settings', id: 'verbi-presente' });
-  assert.equal(byClass(root, 'eligible')[0].textContent, '26 eligible items');
-
-  byClass(root, 'start')[0].fire('click');
-  assert.equal(win.location.hash, gameHash('verbi-presente'), 'Start round is the only way in');
-  assert.deepEqual(router.current(), { name: 'game', id: 'verbi-presente' });
-  assert.deepEqual(log, [
-    'hub',
-    'settings:verbi-presente',
-    'teardown settings:verbi-presente',
-    'game:verbi-presente',
-  ]);
 });
 
 test('a saved settings object is completed against the declaration, and a dead Preset is dropped', () => {
@@ -2247,6 +2277,201 @@ test('the chart sizing lives in the one stylesheet', () => {
     /height:/,
     'a bars row keeps the height it was handed, not one CSS guesses',
   );
+});
+
+// ------------------------------- the verb choice Game (js/games/verbi-presente/index.js)
+
+/** A verb Item, the way the corpus hands one over. @param {string} id @param {number} [mastery] */
+const verbItem = (id, mastery = 0) => ({
+  id,
+  prompt: `${id} · io · presente`,
+  answer: `${id}o`,
+  distractors: [`${id}i`, `${id}a`, `${id}ano`],
+  tags: ['mood:ind', 'person:1s'],
+  mastery,
+});
+
+/** The shipped corpus, read once: the Game's own Item mapping is checked against the real file. */
+const verbItems = JSON.parse(
+  readFileSync(fileURLToPath(new URL('../content/verbi-presente.json', import.meta.url)), 'utf8'),
+);
+
+/** A whole round's Session, built the way boot builds one. @param {any[]} items */
+const verbSession = (items, count, extra = {}) =>
+  createSession(verbiPresenteGame, {
+    content: items,
+    settings: { preset: null, include: {}, controls: { count } },
+    rng: createRng(3),
+    store: null,
+    ...extra,
+  });
+
+test('the weighted queue is min(count, pool) distinct Items, weakest first', () => {
+  const pool = [verbItem('a', 0.9), verbItem('b', 0), verbItem('c', 0.5), verbItem('d', 0)];
+  const byMastery = (/** @type {any} */ item) => item.mastery;
+
+  // A constant RNG makes every key depend on nothing but weight, so the draw order *is* the
+  // weight order: `(1 - mastery) + 0.2`, weakest first, ties kept in pool order.
+  const queue = weightedQueue(pool, { size: 4, rng: () => 0.5, mastery: byMastery });
+  assert.deepEqual(queue.map((entry) => entry.id), ['b', 'd', 'c', 'a']);
+
+  // The round length is the choice, clamped by the pool: never more Items than exist.
+  assert.equal(weightedQueue(pool, { size: 20 }).length, 4, 'a 20-item round draws a 4-item pool dry');
+  assert.equal(weightedQueue(pool, { size: 3 }).length, 3);
+  assert.deepEqual(weightedQueue(pool, { size: 0 }), []);
+  assert.deepEqual(weightedQueue([]), [], 'an empty pool has no queue to draw');
+  assert.equal(weightedQueue(pool).length, 4, 'no size asks for the whole pool');
+
+  // No Item can repeat in a round, whatever the pool and whatever the RNG.
+  for (const seed of [1, 7, 99]) {
+    const full = weightedQueue(pool, { size: pool.length, rng: createRng(seed) });
+    assert.equal(full.length, 4);
+    assert.equal(new Set(full.map((entry) => entry.id)).size, 4, 'drawn without replacement');
+  }
+});
+
+test('an unseen Item outweighs a practised one, and mastery fades by the day', () => {
+  const today = 19700;
+  assert.equal(itemWeight(0), 1.2, 'mastery 0 leaves the flat +0.2 on top of 1');
+  assert.equal(itemWeight(1), 0.2);
+  assert.equal(itemWeight(0.5), 0.7);
+
+  const stored = (/** @type {any} */ entry) => ({ items: { known: entry } });
+  assert.equal(masteryOf({}, 'known', today), 0, 'an Item with no entry is unseen');
+  assert.equal(masteryOf(stored({ ema: 1, last: today }), 'known', today), 1);
+  assert.equal(masteryOf(stored({ a: 3, c: 3, ema: 1, last: today - 14 }), 'known', today), 0.5, 'mastery halves over a fortnight');
+  assert.ok(masteryOf(stored({ ema: 1, last: today - 100 }), 'known', today) < 0.02, 'an Item stopped months ago fades away');
+  assert.equal(masteryOf(stored({ last: today }), 'known', today), 0, 'an entry from before progress existed is unseen');
+  assert.equal(masteryOf({ items: { known: { ema: 9 } } }, 'known', today), 1, 'mastery never leaves 0..1');
+  assert.equal(itemWeight(masteryOf(stored({ ema: 1, last: today }), 'known', today)), 0.2);
+
+  // `today` defaults to the player's own local epoch-day, which is the day `last` is written in:
+  // an attempt made today reads as fully practised, and the counter moves one per calendar day.
+  assert.ok(Number.isInteger(epochDay()));
+  const midday = Date.UTC(2026, 5, 15, 12);
+  assert.equal(epochDay(midday + 86_400_000) - epochDay(midday), 1);
+  assert.equal(masteryOf(stored({ ema: 1, last: epochDay() }), 'known'), 1);
+
+  // A constant RNG shows the weighting deterministically: the unseen Item's key wins, whichever
+  // order the two were in.
+  const practised = verbItem('known', 1);
+  const unseen = verbItem('new', 0);
+  const draw = (/** @type {any[]} */ pool) =>
+    weightedQueue(pool, { size: 1, rng: () => 0.5, mastery: (/** @type {any} */ item) => item.mastery });
+  assert.deepEqual(draw([practised, unseen]).map((entry) => entry.id), ['new']);
+  assert.deepEqual(draw([unseen, practised]).map((entry) => entry.id), ['new'], 'not just pool order');
+
+  // Over many draws the unseen Item really does come up first far more often than chance.
+  const rng = createRng(42);
+  let unseenFirst = 0;
+  for (let n = 0; n < 400; n += 1) {
+    const [first] = weightedQueue([practised, unseen], { size: 2, rng, mastery: (item) => item.mastery });
+    if (first.id === 'new') unseenFirst += 1;
+  }
+  assert.ok(unseenFirst >= 240, `the unseen Item came first in ${unseenFirst}/400 draws`);
+});
+
+test('each question offers its own answer plus its three authored distractors', () => {
+  const cercare = {
+    id: 'verbi-pres-cercare-2s',
+    prompt: 'cercare · tu · presente',
+    answer: 'cerchi',
+    distractors: ['cerci', 'cercai', 'cerca'],
+    tags: ['class:-are'],
+  };
+  const question = questionFor(cercare, createRng(5));
+  assert.equal(question.prompt, cercare.prompt);
+  assert.equal(question.answer, cercare.answer);
+  assert.equal(question.options.length, 4, 'four options per question, always');
+  assert.deepEqual(
+    [...question.options].sort(),
+    [cercare.answer, ...cercare.distractors].sort(),
+    'its own answer and its own three distractors',
+  );
+  assert.equal(new Set(question.options).size, 4, 'never a duplicated option');
+
+  // The order is drawn once, with the Session's RNG, so it is stable for that question and
+  // nothing about the Item's fields can move it afterwards.
+  assert.deepEqual(shuffle(['a', 'b', 'c', 'd'], createRng(5)), shuffle(['a', 'b', 'c', 'd'], createRng(5)));
+  assert.deepEqual(questionFor(cercare, createRng(5)).options, question.options);
+
+  // Every shipped Item maps to a four-option question whose options are exactly its own, and the
+  // answer is not parked in the first row (a drill where position one always wins teaches that).
+  const rng = createRng(11);
+  let firstRowIsAnswer = 0;
+  for (const item of verbItems) {
+    const asked = questionFor(item, rng);
+    assert.equal(asked.options.length, 4, `${item.id} asks four options`);
+    assert.deepEqual([...asked.options].sort(), [item.answer, ...item.distractors].sort(), `${item.id} offers its own four`);
+    if (asked.options[0] === item.answer) firstRowIsAnswer += 1;
+  }
+  assert.ok(firstRowIsAnswer >= 12 && firstRowIsAnswer <= 60, `the answer started in row one ${firstRowIsAnswer}/120 times`);
+});
+
+test('the verb Game plays a choice round of the chosen length, judged in the loop', () => {
+  const pool = verbItems.slice(0, 8);
+  const session = verbSession(pool, 5);
+  assert.equal(session.pool.length, 8);
+
+  withFakeDocument((doc) => {
+    const root = doc.createElement('div');
+    const teardown = verbiPresenteGame.play(root, session);
+    const round = byClass(root, 'round')[0];
+    assert.ok(round, 'the Game draws the shared round markup');
+    assert.equal(round.getAttribute('data-state'), 'ask');
+    assert.equal(round.children[0].children[1].textContent, '1/5', 'the chosen five, not the pool of eight');
+
+    const options = nodesOf(round).filter((node) => node.tagName === 'BUTTON' && node.className.startsWith('opt'));
+    assert.equal(options.length, 4, 'four option rows exist before the first question is read');
+    const promptText = round.children[1].textContent;
+    const asked = pool.find((entry) => entry.prompt === promptText);
+    assert.ok(asked, 'the question is one of the pool’s own Items');
+    const labels = options.map((button) => button.textContent);
+    assert.deepEqual([...labels].sort(), [asked.answer, ...asked.distractors].sort(), 'its own four options');
+
+    // The Game judges nothing itself: the shared loop reads the correct answer out of the option
+    // rows, which is why a wrong tap still shows `giusto: <answer>`.
+    const answerAt = labels.indexOf(asked.answer);
+    const wrongAt = labels.findIndex((label) => label !== asked.answer);
+    options[wrongAt].fire('click');
+    assert.equal(round.getAttribute('data-state'), 'feedback');
+    assert.equal(byClass(round, 'status')[0].textContent, `giusto: ${asked.answer}`);
+    assert.equal(options[answerAt].className, 'opt correct');
+    assert.equal(options[wrongAt].className, 'opt wrong');
+
+    // The host back control runs this teardown, so leaving a round mid-feedback cancels the
+    // pending advance and empties the node the Game was handed.
+    teardown();
+    assert.equal(root.children.length, 0);
+  });
+});
+
+test('the round length comes from the control, and an empty pool draws no question', () => {
+  assert.equal(roundCount({ preset: null, include: {}, controls: { count: 20 } }), 20);
+  assert.equal(roundCount({ preset: null, include: {}, controls: { count: '5' } }), 5, 'a chip’s option, whichever way it was written');
+  assert.equal(roundCount({ preset: null, include: {}, controls: {} }), 10, 'the declared default');
+  assert.equal(roundCount(undefined), 10);
+
+  // A thin pool cannot produce a 20-item round: the queue is what exists.
+  withFakeDocument((doc) => {
+    const thin = doc.createElement('div');
+    const thinTeardown = verbiPresenteGame.play(thin, verbSession(verbItems.slice(0, 3), 20));
+    assert.equal(byClass(thin, 'round')[0].children[0].children[1].textContent, '1/3');
+    thinTeardown();
+
+    // The settings screen refuses to start an empty pool; if a round is entered anyway it
+    // summarises 0/0 instead of asking anything.
+    const empty = doc.createElement('div');
+    const emptyTeardown = verbiPresenteGame.play(empty, verbSession([], 10));
+    const round = byClass(empty, 'round')[0];
+    assert.equal(round.getAttribute('data-state'), 'summary');
+    assert.equal(byClass(round, 'score')[0].textContent, '0/0');
+    assert.ok(
+      nodesOf(round).filter((node) => node.className.startsWith('opt')).every((button) => button.textContent === ''),
+      'no question was ever asked',
+    );
+    emptyTeardown();
+  });
 });
 
 // ------------------------------------------------------------- the service worker (sw.js)
