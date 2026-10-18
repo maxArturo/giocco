@@ -1,13 +1,17 @@
 /**
  * Deterministic Node-level sanity checks for the host modules that are pure enough to run
- * without a DOM: `js/storage.js`, `js/engine.js` and `js/registry.js` today; the router /
- * round loop / charts as they land. Run by `npm test` (or `node tools/sanity.mjs`).
+ * without a browser: `js/storage.js`, `js/engine.js`, `js/registry.js`, `js/router.js` today —
+ * plus `js/ui.js` against a minimal fake `document`, which checks the screen structure it builds
+ * (elements, order, hrefs) and not the layout, focus or taps a browser owns. Run by `npm test`
+ * (or `node tools/sanity.mjs`).
  *
  * Dependency-free `node:assert` only — the project ships no test framework. Behaviour that
- * needs a browser (boot, offline, rendering) is verified manually instead; see AGENTS.md.
+ * needs a real browser (boot, offline, safe areas, hit targets under a thumb) is verified
+ * manually instead; see AGENTS.md.
  */
 
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -30,6 +34,7 @@ import {
   resolveRoute,
   settingsHash,
 } from '../js/router.js';
+import { createUi } from '../js/ui.js';
 
 /** Run `fn` with `console.warn` muted; storage warns on purpose for the blob cases. */
 function quiet(fn) {
@@ -782,6 +787,238 @@ test('the router resolves ids against the registry by default, and a router need
   for (const id of GAME_IDS) assert.deepEqual(resolveRoute(gameHash(id)).route, { name: 'game', id });
   assert.deepEqual(resolveRoute('#/g/not-a-game').route, { name: 'hub', id: null });
   assert.throws(() => createRouter({}), /render/);
+});
+
+// ------------------------------------------------------------- the host screens (js/ui.js)
+
+/**
+ * A `document`-shaped fake covering the handful of DOM members `js/ui.js` builds with, so the
+ * host screens' *structure* can be checked in Node. It proves what was built and what it links
+ * to, never how it looks: layout, focus, safe areas and taps still need the browser.
+ *
+ * @returns {{ createElement: (tag: string) => any }}
+ */
+function fakeDocument() {
+  /** @param {string} tagName */
+  const createElement = (tagName) => {
+    const node = {
+      tagName: tagName.toUpperCase(),
+      className: '',
+      children: [],
+      attributes: {},
+      _text: '',
+      // As in the DOM: assigning text replaces the children it was holding.
+      get textContent() {
+        return node._text + node.children.map((child) => child.textContent).join('');
+      },
+      set textContent(value) {
+        node._text = String(value);
+        node.children.length = 0;
+      },
+      // Attribute reflection only — a real `a.href` would also resolve to an absolute URL.
+      get href() {
+        return Object.hasOwn(node.attributes, 'href') ? node.attributes.href : '';
+      },
+      set href(value) {
+        node.attributes.href = String(value);
+      },
+      getAttribute(name) {
+        return Object.hasOwn(node.attributes, name) ? node.attributes[name] : null;
+      },
+      setAttribute(name, value) {
+        node.attributes[name] = String(value);
+      },
+      append(...nodes) {
+        node.children.push(...nodes);
+      },
+      replaceChildren(...nodes) {
+        node.children.length = 0;
+        node.children.push(...nodes);
+      },
+    };
+    return node;
+  };
+  return { createElement };
+}
+
+/** Every node under and including `root`, in document order. @param {any} root */
+const nodesOf = (root) => [root, ...root.children.flatMap(nodesOf)];
+
+/** @param {any} root @param {string} className */
+const byClass = (root, className) => nodesOf(root).filter((node) => node.className === className);
+
+/** @param {any} root @param {string} tag */
+const byTag = (root, tag) => nodesOf(root).filter((node) => node.tagName === tag.toUpperCase());
+
+/** The one declaration block a selector owns in the shipped stylesheet. @param {string} selector */
+function cssBlock(selector) {
+  const css = readFileSync(fileURLToPath(new URL('../styles.css', import.meta.url)), 'utf8');
+  const match = new RegExp(`${selector.replace('.', '\\.')}\\s*\\{([^}]*)\\}`).exec(css);
+  assert.ok(match, `${selector} exists in styles.css`);
+  return match[1];
+}
+
+test('the hub is a wordmark and one card per Game, in registry order, and nothing else', () => {
+  const doc = fakeDocument();
+  const ui = createUi(doc);
+  const root = doc.createElement('div');
+
+  ui.hub(root);
+
+  assert.equal(byClass(root, 'hub').length, 1);
+  const wordmarks = byTag(root, 'h1');
+  assert.equal(wordmarks.length, 1);
+  assert.equal(wordmarks[0].className, 'wordmark');
+  assert.equal(wordmarks[0].textContent, 'Giocco');
+  assert.equal(wordmarks[0].tagName, 'H1', 'the wordmark is not a link');
+
+  const lists = byClass(root, 'game-list');
+  assert.equal(lists.length, 1, 'no Game declares a section yet: one column, one list');
+  const cards = byClass(root, 'game-card');
+  assert.deepEqual(lists[0].children.map((li) => li.tagName), ['LI', 'LI', 'LI']);
+  assert.deepEqual(lists[0].children.map((li) => li.children[0]), cards, 'the card is the only child');
+
+  assert.deepEqual(
+    cards.map((card) => card.getAttribute('href')),
+    GAME_IDS.map((id) => settingsHash(id)),
+    'one card per registered Game, in display order, each opening its settings route',
+  );
+  assert.deepEqual(
+    cards.map((card) => card.textContent),
+    GAMES.map((game) => `${game.title}${game.description ?? ''}`),
+    'a card shows the title and the optional description, and nothing derived',
+  );
+  assert.equal(cards[0].tagName, 'A', 'the whole card is the tap target');
+
+  assert.deepEqual(byTag(root, 'button'), [], 'the hub has no button, so no continue action');
+  assert.deepEqual(byTag(root, 'input'), [], 'no search');
+  assert.doesNotMatch(byClass(root, 'hub')[0].textContent, /\d/, 'the hub shows no count or percentage');
+});
+
+test('a Game declaring a section gets a plain heading, and the column stays one column', () => {
+  const doc = fakeDocument();
+  const ui = createUi(doc);
+  const root = doc.createElement('div');
+  const games = [
+    { id: 'a', title: 'A', play: () => () => {} },
+    { id: 'b', title: 'B', play: () => () => {}, section: 'Grammar' },
+    { id: 'c', title: 'C', play: () => () => {}, section: 'Grammar' },
+    { id: 'd', title: 'D', play: () => () => {}, description: 'D sc', section: 'Vocabulary' },
+  ];
+
+  ui.hub(root, games);
+
+  assert.deepEqual(byClass(root, 'section-title').map((h) => h.textContent), ['Grammar', 'Vocabulary']);
+  assert.deepEqual(byTag(root, 'h2').map((h) => h.className), ['section-title', 'section-title']);
+  assert.equal(byClass(root, 'game-list').length, 3, 'the list breaks only where the heading changes');
+  assert.deepEqual(byClass(root, 'game-card').map((card) => card.getAttribute('href')), [
+    '#/g/a/settings',
+    '#/g/b/settings',
+    '#/g/c/settings',
+    '#/g/d/settings',
+  ]);
+});
+
+test('a Game route draws one back control and hands the Game its own node, chrome apart', () => {
+  const doc = fakeDocument();
+  const ui = createUi(doc);
+  const root = doc.createElement('div');
+  const game = { id: 'verbi-presente', title: 'Verbi · presente', play: () => () => {} };
+
+  const { playRoot, teardown } = ui.gameScreen(root, game);
+
+  const backs = byClass(root, 'back');
+  assert.equal(backs.length, 1, 'the host draws exactly one control');
+  assert.equal(backs[0].tagName, 'A');
+  assert.equal(backs[0].getAttribute('href'), HUB_HASH, 'the back control always goes to the hub');
+  assert.equal(backs[0].textContent, '←Back', 'English chrome');
+  assert.deepEqual(byTag(byClass(root, 'host-bar')[0], 'a'), [backs[0]]);
+  assert.deepEqual(byTag(root, 'button'), [], 'the chrome is not a button the host would have to wire');
+
+  assert.equal(playRoot.className, 'game');
+  assert.equal(playRoot.getAttribute('data-game'), 'verbi-presente');
+  assert.deepEqual(byClass(playRoot, 'back'), [], 'the node a Game gets holds no quit control');
+  assert.deepEqual(root.children, [byClass(root, 'host-bar')[0], playRoot], 'chrome first, then the Game');
+
+  teardown();
+  assert.deepEqual(root.children, [], 'leaving the Game removes the chrome and its node');
+});
+
+test('the documented tap-target minimums live in the one stylesheet', () => {
+  assert.match(cssBlock('.game-card'), /display:\s*block/);
+  assert.match(cssBlock('.game-card'), /width:\s*100%/);
+  assert.match(cssBlock('.game-card'), /min-height:\s*64px/);
+  assert.match(cssBlock('.back'), /min-width:\s*44px/);
+  assert.match(cssBlock('.back'), /min-height:\s*44px/);
+});
+
+test('a hub card opens that Game’s settings route, and the back control returns to the hub', () => {
+  const doc = fakeDocument();
+  const ui = createUi(doc);
+  const root = doc.createElement('div');
+  const win = fakeWindow(HUB_HASH);
+  /** @type {string[]} */
+  const log = [];
+  const session = { pool: [], content: null, settings: null, rng: Math.random, store: null };
+
+  // The render a boot wires up: this is the composition the router owns, with US-007's settings
+  // screen standing in as a marker because it does not exist yet.
+  const router = createRouter({
+    window: win,
+    render: (route) => {
+      if (route.name === 'hub') {
+        log.push('hub');
+        ui.hub(root);
+        return;
+      }
+      const game = gameById(route.id);
+      if (route.name === 'game') {
+        log.push(`game:${route.id}`);
+        const { playRoot, teardown } = ui.gameScreen(root, game);
+        const done = game.play(playRoot, session);
+        return () => {
+          done();
+          teardown();
+          log.push(`teardown game:${route.id}`);
+        };
+      }
+      log.push(`settings:${route.id}`);
+      root.replaceChildren();
+      return () => log.push(`teardown settings:${route.id}`);
+    },
+  });
+
+  router.start();
+  assert.deepEqual(router.current(), { name: 'hub', id: null });
+
+  // A tap on a card is navigation to the href the host put on it — the host pushes no route
+  // itself, so the card works before any script runs.
+  assert.equal(win.location.hash, HUB_HASH);
+  win.location.hash = byClass(root, 'game-card')[0].getAttribute('href');
+  assert.deepEqual(router.current(), { name: 'settings', id: 'verbi-presente' });
+
+  router.navigate(gameHash('nomi-plurale')); // `Start round` is US-007's, but it lands here
+  assert.deepEqual(router.current(), { name: 'game', id: 'nomi-plurale' });
+
+  win.location.hash = byClass(root, 'back')[0].getAttribute('href');
+  assert.equal(win.location.hash, HUB_HASH);
+  assert.deepEqual(router.current(), { name: 'hub', id: null }, 'the back control leaves the Game');
+  assert.deepEqual(log, [
+    'hub',
+    'settings:verbi-presente',
+    'teardown settings:verbi-presente',
+    'game:nomi-plurale',
+    'teardown game:nomi-plurale',
+    'hub',
+  ]);
+});
+
+test('the host screens need a document, and the browser path takes none', () => {
+  assert.throws(() => createUi(null), /document-like/);
+  assert.throws(() => createUi({}), /document-like/);
+  const ui = createUi(fakeDocument());
+  assert.equal(typeof ui.hub, 'function');
+  assert.equal(typeof ui.gameScreen, 'function');
 });
 
 /** @returns {Promise<boolean>} true when every case passed */

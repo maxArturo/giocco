@@ -34,21 +34,26 @@ missing field. Extend `tools/selftest.mjs` (not a new framework) when adding a g
 
 Host modules that are DOM-free carry their deterministic checks in `tools/sanity.mjs` instead
 (`node tools/sanity.mjs`, also run by `npm test`); it imports `js/**` directly with plain
-`node:assert` cases, and a case may be `async` (`runSanity()` awaits every case). Anything that
-needs a DOM (boot, rendering, offline) is verified manually. Host modules that touch environment
-globals (`localStorage`) or the network (`fetch`) take them as injectable defaults so Node can
-drive them with a fake backend.
+`node:assert` cases, and a case may be `async` (`runSanity()` awaits every case). Host modules
+that touch environment globals (`localStorage`) or the network (`fetch`) take them as injectable
+defaults so Node can drive them with a fake backend — `js/ui.js` takes `document` the same way,
+and the suite's `fakeDocument()` (create/append/attrs/`textContent` only) is what lets a screen's
+*structure* be checked in Node. What a fake cannot see — layout, safe areas, focus order, hit
+targets under a thumb, offline — stays a manual browser/device check; the CSS minimum sizes are
+the one thing read out of `styles.css` by a case.
 
 Status: **host engine.** `index.html`, `styles.css`, `manifest.webmanifest`, `icons/`,
 `.nojekyll`, the `js/app.js` boot placeholder, `js/storage.js` (envelope, `migrate()`, per-Game
 settings + store), `js/engine.js` (Pool filter, content loading, the five-property Session,
 injectable RNG, settings/Preset helpers), `js/registry.js` (the three permanent ids in
-display order, each importing its `js/games/<id>/index.js`) and `js/router.js` (the three frozen
-hash routes, cold-load and unknown-route redirects, screen teardown) exist. Those three Game
+display order, each importing its `js/games/<id>/index.js`), `js/router.js` (the three frozen
+hash routes, cold-load and unknown-route redirects, screen teardown) and `js/ui.js` (the hub —
+wordmark plus one card per Game linking to its settings route — and the Game route's chrome: a
+single back control to `#/` plus the empty node a Game draws into) exist. Those three Game
 modules are registration placeholders: they declare `id`, `title`, `description` and a no-op
-`play()` until their drills, declarations and `content/*.json` land. `sw.js`, `js/ui.js`,
-`js/lib/*` and `content/*.json` do not exist yet, and nothing calls `createRouter()` — the boot
-wiring is US-008's.
+`play()` until their drills, declarations and `content/*.json` land. `sw.js`, the settings
+screen (US-007), `js/lib/*` and `content/*.json` do not exist yet, and nothing calls
+`createRouter()` or `createUi()` — the boot wiring is US-008's.
 
 ## Shell
 
@@ -68,6 +73,13 @@ environment (`window`) as a parameter, which is how `tools/sanity.mjs` drives co
 redirects and Back/Forward with a fake; a redirect uses `location.replace()` so the entry that
 held the cold or dead URL is replaced rather than pushed. Whatever a screen's `render` returns is
 its teardown, and the router runs it before the next screen renders and on `stop()`.
+- `js/ui.js` draws the host's screens and nothing else: `createUi(doc = document)` returns `hub()`
+(wordmark + one `a.game-card` per Game, in registry order, each pointing at that Game's settings
+route) and `gameScreen()` (the back control plus the node a Game draws into). Cards and the back
+control are plain anchors, so navigation needs no handler and works before the boot script has
+run. `gameScreen()` never calls `play()`: the route renderer mounts the Game into the returned
+`playRoot` and composes the two teardowns, which is why `ui.js` imports no engine or storage.
+Chrome copy is English; a Game's own strings stay Italian.
 
 To check the shell the way it is deployed, symlink the repo into a parent directory and serve
 that (`ln -s $PWD /tmp/serve/giocco && cd /tmp/serve && python3 -m http.server 8001`), then load

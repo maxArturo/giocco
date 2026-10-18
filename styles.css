@@ -128,6 +128,19 @@ button {
   opacity: 0.75;
 }
 
+/*
+ * The node a Game draws into: it takes whatever the chrome leaves, inside the shell's own
+ * safe-area padding. A Game that sizes itself against this node (`height: 100%`) therefore
+ * fills the screen below the back control without the page ever scrolling; a Game that reaches
+ * for `100dvh` instead would push the chrome off the top.
+ */
+.game {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
 /* ---- (A) the hub ---------------------------------------------------------- */
 
 .hub {

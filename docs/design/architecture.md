@@ -78,6 +78,13 @@ loud error, not a silently empty Pool.
 so no Game can trap the player. Everything else on that screen is the Game's. The other host
 surface is the settings screen, rendered from the Game's `dims`, `presets` and `controls`.
 
+`js/ui.js` is the whole of that: `createUi(doc = document)` returns `hub()` — the wordmark plus
+one card per Game, each a plain anchor to that Game's settings route — and `gameScreen(root, game)`
+— the back control plus an empty `playRoot`, whose teardown removes both. It never calls `play()`:
+the route renderer mounts the Game into `playRoot` and composes the two teardowns, so `ui.js`
+imports neither the engine nor storage and a Game can never be handed host chrome. Anchors are
+used instead of handlers, so hub card and back control work as soon as the fragment changes.
+
 **4. Persist.** The host writes `session.store` on every mutation and never looks inside it.
 
 ## The Game module
