@@ -10,6 +10,7 @@ Repo map. Read the row before you touch that area.
 | `docs/design/ui-and-interaction.md` | The hub, `roundLoop()`'s contract, the settings screen, statistics-view guidance, touch/a11y rules | Before changing any screen |
 | `docs/adr/0001-the-host-owns-no-scoring.md` | Why scoring, mastery and statistics are Game-local | Before adding a shared progress model |
 | `docs/adr/0002-hash-routes-relative-urls-on-deploy.md` | Why hash routes, relative URLs, and a frozen subpath | Before changing routing or deploy paths |
+| `docs/verification/v0.1-acceptance.md` | The US-020 verification record: the served `/giocco/` shape, the offline relaunch, the navigation contracts, and what a real device still owns | Before re-verifying the deployed path or offline behavior |
 
 ## Development gates
 
@@ -115,7 +116,11 @@ verb modules also declare
 them — their declarations must stay in step, which `tools/sanity.mjs` checks. The boot wiring is
 `js/app.js`: `boot()` registers `./sw.js`, fetches every registered Game's declared content, then
 hands `createRouter()` a renderer that composes the host's screens with that content and the live
-storage slices.
+storage slices. `tools/sanity.mjs` also carries US-020's deployed-shape case (every shipped URL
+relative and on disk, `.nojekyll`, the manifest's `start_url`/`scope`, the worker's classic form
+and four-URL `SHELL`, no development gate wired in), and the manual half of that verification —
+the served `/giocco/` crawl, the offline relaunch over the real server, and the navigation
+contracts played through the real `boot()` — is recorded in `docs/verification/v0.1-acceptance.md`.
 
 ## Shell
 

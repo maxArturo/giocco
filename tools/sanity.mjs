@@ -12,7 +12,7 @@
  */
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createContext, runInContext } from 'node:vm';
@@ -4222,6 +4222,80 @@ test('the shell hands boot one #app root and one module entry, and boot’s impo
     assert.ok(specifier.startsWith('./'), `${specifier} is relative to the deployed subpath`);
     assert.doesNotMatch(specifier, /tools|check/, `${specifier} is not the development gate`);
   }
+});
+
+// ------------------------------------------------------------- the deployed shape (US-020)
+
+const REPO_ROOT = fileURLToPath(new URL('../', import.meta.url));
+
+/** Every `.js` file under a directory, in directory order. @param {string} dir */
+function jsFiles(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) return jsFiles(full);
+    return entry.name.endsWith('.js') ? [full] : [];
+  });
+}
+
+/** A relative URL is one a `/giocco/` deploy keeps inside its scope. @param {string} url */
+const isRelativeUrl = (url) => !url.startsWith('/') && !/^[a-z][a-z0-9+.-]*:/i.test(url);
+
+/** The import specifiers of one source file, so a prose quote is never mistaken for an import. */
+const importSpecifiers = (source) =>
+  [
+    ...source.matchAll(/^\s*(?:import|export)\b[^\n]*?from\s*['"]([^'"]+)['"]/gm),
+    ...source.matchAll(/^\s*import\s*['"]([^'"]+)['"]/gm),
+    ...source.matchAll(/import\(\s*['"]([^'"]+)['"]/g),
+  ].map((match) => match[1]);
+
+test('the deployed shape: every shipped URL is relative, and no development gate is wired in', () => {
+  // `.nojekyll` is what keeps GitHub Pages from running Jekyll over the deployed subpath.
+  assert.equal(existsSync(path.join(REPO_ROOT, '.nojekyll')), true, 'the site root carries .nojekyll');
+
+  const html = readFileSync(path.join(REPO_ROOT, 'index.html'), 'utf8');
+  const refs = [...html.matchAll(/(?:href|src)="([^"]+)"/g)].map((match) => match[1]);
+  assert.ok(refs.length > 0, 'the shell references its assets');
+  for (const ref of refs) {
+    assert.ok(isRelativeUrl(ref), `${ref} is absolute, so it would leave the /giocco/ subpath`);
+    assert.equal(existsSync(path.join(REPO_ROOT, ref)), true, `${ref} is missing under the site root`);
+    assert.doesNotMatch(ref, /tools\/|node_modules/, `${ref} is a development path`);
+  }
+
+  for (const file of jsFiles(path.join(REPO_ROOT, 'js'))) {
+    const source = readFileSync(file, 'utf8');
+    for (const specifier of importSpecifiers(source)) {
+      const where = path.relative(REPO_ROOT, file);
+      assert.ok(isRelativeUrl(specifier), `${where} imports absolute ${specifier}`);
+      assert.doesNotMatch(specifier, /tools\/|node_modules/, `${where} imports a development gate`);
+      assert.equal(
+        existsSync(path.resolve(path.dirname(file), specifier)),
+        true,
+        `${where} imports a module that is not on disk`,
+      );
+    }
+  }
+
+  const manifest = JSON.parse(readFileSync(path.join(REPO_ROOT, 'manifest.webmanifest'), 'utf8'));
+  assert.equal(manifest.start_url, './', 'the installed app starts inside the subpath');
+  assert.equal(manifest.scope, './', 'the installed app is scoped to the subpath');
+  for (const icon of manifest.icons) {
+    assert.ok(isRelativeUrl(icon.src), `${icon.src} is absolute`);
+    assert.equal(existsSync(path.join(REPO_ROOT, icon.src)), true, `${icon.src} is missing`);
+  }
+
+  // `sw.js` at the site root is exactly what gives the worker its `/giocco/` scope, and its
+  // precache list is the only thing a first online load needs before the app code caches itself.
+  const worker = readFileSync(path.join(REPO_ROOT, 'sw.js'), 'utf8');
+  const shell = worker.match(/const SHELL = (\[[^\]]*\]);/);
+  assert.ok(shell, 'sw.js keeps its one SHELL literal');
+  assert.deepEqual(JSON.parse(shell[1].replace(/'/g, '"')), [
+    './',
+    './index.html',
+    './styles.css',
+    './manifest.webmanifest',
+  ]);
+  assert.doesNotMatch(shell[1], /tools\/|node_modules/);
+  assert.equal(worker.includes('type: \'module\''), false, 'the worker stays classic');
 });
 
 /** @returns {Promise<boolean>} true when every case passed */
