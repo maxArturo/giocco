@@ -1033,6 +1033,9 @@ function withFakeTimers(fn) {
   } finally {
     globalThis.setTimeout = previousSetTimeout;
     globalThis.clearTimeout = previousClearTimeout;
+    // A pending fake timer is the suite's own version of a leaked handle: the Game's teardown has
+    // to have cleared it, which is what the real browser and the real suite depend on.
+    assert.equal(clock.pending(), 0, `${clock.pending()} timer(s) left scheduled when the case ended`);
   }
 }
 
@@ -4270,6 +4273,23 @@ test('the deployed shape: every shipped URL is relative, and no development gate
         existsSync(path.resolve(path.dirname(file), specifier)),
         true,
         `${where} imports a module that is not on disk`,
+      );
+    }
+  }
+
+  // A Game's declared `content` is resolved against the site root at boot (`engine.js`), so an
+  // absolute path would pass every other gate here and then 404 beneath `/giocco/`.
+  for (const game of GAMES) {
+    const declared = game.content;
+    if (declared === undefined) continue;
+    const paths = typeof declared === 'string' ? [declared] : Object.values(declared);
+    for (const entry of paths) {
+      assert.ok(isRelativeUrl(entry), `${game.id} declares the absolute content path ${entry}`);
+      assert.doesNotMatch(entry, /tools\/|node_modules/, `${game.id} declares a development path`);
+      assert.equal(
+        existsSync(path.join(REPO_ROOT, entry)),
+        true,
+        `${game.id} declares content that is not on disk: ${entry}`,
       );
     }
   }
