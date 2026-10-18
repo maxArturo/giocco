@@ -74,12 +74,16 @@ chart helpers a Game's own statistics view draws with) exist, and `content/verbi
 `min(chosen count, pool.length)` distinct Items, each asked with its own answer plus its three
 authored distractors in a shuffled four-option set, handed to `roundLoop()` in `choice` mode.
 Its named exports (`weightedQueue`, `questionFor`, `itemWeight`, `masteryOf`, `epochDay`,
-`shuffle`, `roundCount`) are the draw policy `verbi-presente-rivela` and `nomi-plurale` reuse.
-`verbi-presente-rivela` and `nomi-plurale` are still registration placeholders: they declare
-`id`, `title`, `description`, the shared round-count `controls` and a no-op `play()` until their
-drills land; the two verb modules also declare `content`, `fields`, `dims` and `presets`
-(US-012), so the one verb file is gated against both of them — their declarations must stay in
-step, which `tools/sanity.mjs` checks.
+`shuffle`, `roundCount`) are the draw policy the other Games import rather than copy.
+`js/games/verbi-presente-rivela/index.js` plays a real reveal round (US-014): it imports that
+policy (`weightedQueue`, `masteryOf`, `roundCount`), draws the same weighted, without-replacement
+queue and hands `roundLoop()` `mode: 'reveal'` with `{ prompt, answer }` questions — one prompt,
+one *Show answer*, then the two self-grade labels, nothing red and no auto-advance. Mastery is
+read from *its own* `session.store`, so production progress never borrows recognition's.
+`nomi-plurale` is still a registration placeholder: it declares `id`, `title`, `description`, the
+shared round-count `controls` and a no-op `play()` until its drill lands; the two verb modules
+also declare `content`, `fields`, `dims` and `presets` (US-012), so the one verb file is gated
+against both of them — their declarations must stay in step, which `tools/sanity.mjs` checks.
 `content/nomi-plurale.json` does not exist yet, and the boot wiring is
 `js/app.js`: `boot()` registers `./sw.js`, fetches every registered Game's declared content, then
 hands `createRouter()` a renderer that composes the host's screens with that content and the live

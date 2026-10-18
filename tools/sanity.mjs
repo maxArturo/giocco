@@ -48,6 +48,10 @@ import verbiPresenteGame, {
   shuffle,
   weightedQueue,
 } from '../js/games/verbi-presente/index.js';
+import verbiPresenteRivelaGame, {
+  revealQuestion,
+  roundQueue,
+} from '../js/games/verbi-presente-rivela/index.js';
 import { boot } from '../js/app.js';
 
 /** Run `fn` with `console.warn` muted; storage warns on purpose for the blob cases. */
@@ -2471,6 +2475,129 @@ test('the round length comes from the control, and an empty pool draws no questi
       'no question was ever asked',
     );
     emptyTeardown();
+  });
+});
+
+// ------------------------- the verb reveal Game (js/games/verbi-presente-rivela/index.js)
+
+/** A whole reveal round's Session, built the way boot builds one. @param {any[]} items */
+const rivelaSession = (items, count, extra = {}) =>
+  createSession(verbiPresenteRivelaGame, {
+    content: items,
+    settings: { preset: null, include: {}, controls: { count } },
+    rng: createRng(3),
+    store: null,
+    ...extra,
+  });
+
+test('the reveal Game draws the same weighted, without-replacement queue', () => {
+  const today = epochDay();
+  const pool = [verbItem('a', 0.9), verbItem('b', 0), verbItem('c', 0.5), verbItem('d', 0)];
+  const store = {
+    items: Object.fromEntries(pool.map((entry) => [entry.id, { ema: entry.mastery, last: today }])),
+  };
+
+  // The same Efraimidis–Spirakis key the choice Game uses: with a constant RNG the draw order *is*
+  // the weight order, weakest first, ties kept in pool order.
+  const queue = roundQueue(pool, { size: 4, rng: () => 0.5, store, today });
+  assert.deepEqual(queue.map((entry) => entry.id), ['b', 'd', 'c', 'a']);
+
+  // The round length is the choice, clamped by the pool; no Item can repeat in a round.
+  assert.equal(roundQueue(pool, { size: 20, rng: () => 0.5, store, today }).length, 4, 'min(count, pool)');
+  assert.deepEqual(roundQueue([], { size: 5, rng: () => 0.5, store, today }), [], 'an empty pool has no queue');
+  for (const seed of [1, 7, 99]) {
+    const full = roundQueue(pool, { size: 4, rng: createRng(seed), store, today });
+    assert.equal(full.length, 4);
+    assert.equal(new Set(full.map((entry) => entry.id)).size, 4, 'drawn without replacement');
+  }
+});
+
+test('the reveal Game reads mastery from its own store, never the choice Game\u2019s', () => {
+  const backend = fakeBackend();
+  const storage = createStorage(backend);
+  const choiceStore = storage.store('verbi-presente');
+  const revealStore = storage.store('verbi-presente-rivela');
+  assert.notEqual(choiceStore, revealStore, 'each Game id owns its own slice');
+
+  const today = epochDay();
+  const pool = [verbItem('a'), verbItem('b'), verbItem('c'), verbItem('d')];
+  // Recognition believes it has mastered a and b; production has no history at all.
+  choiceStore.items = { a: { ema: 1, last: today }, b: { ema: 1, last: today } };
+
+  /** @param {any} store */
+  const draw = (store) => roundQueue(pool, { size: 4, rng: () => 0.5, store, today }).map((entry) => entry.id);
+  assert.deepEqual(draw(choiceStore), ['c', 'd', 'a', 'b'], 'the choice Game weights by its own mastered Items');
+  assert.deepEqual(draw(revealStore), ['a', 'b', 'c', 'd'], 'the reveal Game\u2019s empty store leaves the pool order alone');
+  assert.deepEqual(draw(revealStore), draw(createStorage(fakeBackend()).store('verbi-presente-rivela')), 'nothing leaked in');
+
+  // A write through one Game's slice never appears in the other's — the two drills never average.
+  revealStore.items = { c: { a: 1, c: 1, ema: 0.25, last: today } };
+  assert.equal(choiceStore.items.c, undefined, 'production progress stays out of recognition');
+  assert.deepEqual(backend.envelope().data.games['verbi-presente'].store.items, {
+    a: { ema: 1, last: today },
+    b: { ema: 1, last: today },
+  });
+});
+
+test('a reveal question carries the prompt and the answer, and no options', () => {
+  const item = verbItem('cercare');
+  assert.deepEqual(revealQuestion(item), { prompt: item.prompt, answer: item.answer });
+  assert.equal('options' in revealQuestion(item), false, 'a reveal Game never draws options');
+});
+
+test('the reveal Game asks the prompt, reveals the answer and self-grades', () => {
+  const pool = verbItems.slice(0, 5);
+  const session = rivelaSession(pool, 5);
+
+  withFakeDocument((doc) => {
+    const root = doc.createElement('div');
+    const teardown = verbiPresenteRivelaGame.play(root, session);
+    const round = byClass(root, 'round')[0];
+    assert.ok(round, 'the Game draws the shared round markup');
+    assert.equal(round.getAttribute('data-state'), 'ask');
+    assert.equal(round.children[0].children[1].textContent, '1/5', 'the chosen five, not the pool it was filtered from');
+    assert.equal(byClass(round, 'back').length, 0, 'the Game draws no quit control \u2014 the host owns that');
+
+    const options = round.children[3];
+    assert.equal(options.hidden, true, 'a reveal round offers no option rows');
+    const actions = round.children[4];
+    assert.equal(actions.hidden, false);
+    const [showAnswer, gradeRight, gradeWrong] = nodesOf(actions).filter((node) => node.tagName === 'BUTTON');
+    assert.equal(showAnswer.textContent, 'Show answer');
+    assert.equal(gradeRight.textContent, 'I was right');
+    assert.equal(gradeWrong.textContent, 'I was wrong');
+    assert.equal(gradeRight.hidden, true, 'the two grades only exist after the reveal');
+
+    const asked = pool.find((entry) => entry.prompt === round.children[1].textContent);
+    assert.ok(asked, 'the question is one of the pool\u2019s own Items');
+
+    showAnswer.fire('click');
+    assert.equal(round.getAttribute('data-state'), 'selfGrade');
+    assert.equal(byClass(round, 'status')[0].textContent, asked.answer, 'the answer is revealed, to be graded');
+    assert.equal(gradeRight.hidden, false);
+    assert.equal(gradeWrong.hidden, false);
+    assert.equal(byClass(round, 'wrong').length, 0, 'nothing is ever coloured red in reveal mode');
+
+    gradeWrong.fire('click');
+    assert.equal(round.getAttribute('data-grade'), 'bad');
+    assert.equal(byClass(round, 'status')[0].textContent, 'da rivedere');
+
+    // The host back control runs this teardown, so exiting mid-selfGrade cancels the pending
+    // confirm and empties the node the Game was handed.
+    teardown();
+    assert.equal(root.children.length, 0);
+  });
+});
+
+test('an empty reveal pool summarises as 0/0 instead of starting a round', () => {
+  withFakeDocument((doc) => {
+    const root = doc.createElement('div');
+    const teardown = verbiPresenteRivelaGame.play(root, rivelaSession([], 10));
+    const round = byClass(root, 'round')[0];
+    assert.equal(round.getAttribute('data-state'), 'summary');
+    assert.equal(byClass(round, 'score')[0].textContent, '0/0');
+    assert.equal(round.children[3].hidden, true, 'no question was ever asked');
+    teardown();
   });
 });
 
