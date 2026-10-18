@@ -3572,6 +3572,313 @@ test('a thin noun pool is the round, and an empty one summarises 0/0', () => {
   });
 });
 
+// ---------------------- the noun choice Game's progress and statistics (US-019)
+
+/** The one option button carrying this label, out of the four rows on screen. */
+const nounOption = (/** @type {any} */ round, /** @type {string} */ label) =>
+  nodesOf(round)
+    .filter((node) => node.tagName === 'BUTTON' && node.className.startsWith('opt'))
+    .find((button) => button.textContent === label);
+
+/** A button carrying this label anywhere under `container`; text concatenates, so match the tag. */
+const nounButton = (/** @type {any} */ container, /** @type {string} */ label) =>
+  nodesOf(container).filter((node) => node.tagName === 'BUTTON' && node.textContent === label)[0];
+
+/** A noun Item carrying exactly these Tags, for the Tag rows and the weakest-first order. */
+const taggedNoun = (/** @type {string} */ id, /** @type {string[]} */ tags) => ({ ...nounItem(id), tags });
+
+test('a noun answer writes the shared counters into the noun Game’s own store', () => {
+  const today = epochDay();
+  // One Item, so Play again re-draws the very Item whose counters this case follows.
+  const pool = nounItems.slice(0, 1);
+  const store = {};
+
+  withFakeDocument((doc) => {
+    withFakeTimers((clock) => {
+      const root = doc.createElement('div');
+      const teardown = nomiPluraleGame.play(root, nounSession(pool, 1, { store }));
+      const round = byClass(root, 'round')[0];
+      const asked = askedItem(round, pool);
+      assert.ok(asked, 'the question is one of the pool’s own Items');
+
+      // A wrong answer: the documented unseen-Item start (a=1, c=0, ema=0, stamped today), no
+      // points, and this week’s Tag snapshot — written the moment the loop judges the tap.
+      nounOption(round, asked.distractors[0]).fire('click');
+      assert.deepEqual(store.items[asked.id], { a: 1, c: 0, ema: 0, last: today });
+      assert.equal(store.points, 0);
+      assert.deepEqual(store.days.map((bucket) => [bucket.d, bucket.a, bucket.c, bucket.p]), [[today, 1, 0, 0]]);
+      assert.equal(store.weeks.length, 1, 'and this week’s Tag snapshot');
+      clock.tick(WRONG_DELAY);
+      assert.equal(round.getAttribute('data-state'), 'summary');
+      assert.equal(byClass(round, 'score')[0].textContent, '0/1');
+      assert.equal(byClass(round, 'points')[0].textContent, '+0 pt', 'a wrong answer earns nothing');
+
+      // Play again draws in place; a right answer compounds the same EMA and earns 10.
+      nounButton(byClass(round, 'summary')[0], 'Play again').fire('click');
+      assert.equal(askedItem(round, pool).id, asked.id, 'a one-Item pool redraws the same Item');
+      nounOption(round, asked.answer).fire('click');
+      assert.deepEqual(store.items[asked.id], { a: 2, c: 1, ema: 0.25, last: today });
+      assert.equal(store.points, POINTS_CORRECT);
+      assert.equal(masteryOf(store, asked.id, today), 0.25, 'the shared mastery read sees the same number');
+      clock.tick(CORRECT_DELAY);
+      assert.equal(byClass(round, 'points')[0].textContent, `+${POINTS_CORRECT} pt`);
+      teardown();
+      assert.equal(root.children.length, 0);
+    });
+  });
+
+  // A Session built without a store is still a round: the points show, nothing is written.
+  withFakeDocument((doc) => {
+    withFakeTimers((clock) => {
+      const root = doc.createElement('div');
+      const teardown = nomiPluraleGame.play(root, nounSession(pool, 1));
+      const round = byClass(root, 'round')[0];
+      const asked = askedItem(round, pool);
+      nounOption(round, asked.answer).fire('click');
+      clock.tick(CORRECT_DELAY);
+      assert.equal(byClass(round, 'points')[0].textContent, `+${POINTS_CORRECT} pt`);
+      teardown();
+    });
+  });
+});
+
+test('a week away from a noun earns the shared recency bonus, through the real Game', () => {
+  const today = epochDay();
+  const item = nounItems[0];
+  // The noun was answered correctly ten local days ago; this round answers it right again, so the
+  // +5 for coming back is what the shared policy adds — not a copy of it living in this Game.
+  const store = { items: { [item.id]: { a: 1, c: 1, ema: 0.5, last: today - 10 } }, points: POINTS_CORRECT };
+
+  withFakeDocument((doc) => {
+    withFakeTimers((clock) => {
+      const root = doc.createElement('div');
+      const teardown = nomiPluraleGame.play(root, nounSession([item], 1, { store }));
+      const round = byClass(root, 'round')[0];
+      assert.equal(round.children[1].textContent, item.prompt);
+      nounOption(round, item.answer).fire('click');
+      assert.equal(store.points, 2 * POINTS_CORRECT + POINTS_RETURN, '10 for the answer, 5 for the week away');
+      assert.deepEqual(store.items[item.id], { a: 2, c: 2, ema: 0.625, last: today });
+      clock.tick(CORRECT_DELAY);
+      assert.equal(byClass(round, 'points')[0].textContent, `+${POINTS_CORRECT + POINTS_RETURN} pt`);
+      teardown();
+    });
+  });
+});
+
+test('the noun Game keeps the shared bounded history and windows its statistics', () => {
+  const today = epochDay();
+  const item = nounItems[0];
+  const store = {};
+
+  // Five noun rounds in one local day: one daily bucket that accumulates, one weekly snapshot —
+  // the history is per local day and per local week, never per attempt.
+  for (let n = 0; n < 5; n += 1) recordAttempt(store, item, n % 2 === 0, { now: atDay(today), items: [item] });
+  assert.equal(store.days.length, 1);
+  assert.deepEqual([store.days[0].a, store.days[0].c], [5, 3]);
+  assert.equal(store.weeks.length, 1, 'one snapshot per local week');
+
+  // Two hundred days of noun practice: the history is bounded, the total is not.
+  const aged = {};
+  for (let day = today - 199; day <= today; day += 1) {
+    recordAttempt(aged, item, true, { now: atDay(day), items: [item] });
+  }
+  assert.equal(aged.days.length, DAILY_BUCKETS, 'only the last 90 daily buckets are kept');
+  assert.equal(aged.weeks.length, WEEKLY_SNAPSHOTS, 'at most 26 weekly snapshots are kept');
+  assert.equal(aged.points, 200 * POINTS_CORRECT, 'the total is not bounded');
+
+  // The view that reads it draws the documented 30-local-day window, never the whole store.
+  const stats = statsFor(aged, [item], atDay(today));
+  assert.equal(stats.cumulative.length, POINTS_WINDOW);
+  assert.equal(stats.cumulative[POINTS_WINDOW - 1], stats.points, 'the line ends at the total');
+  assert.equal(stats.daily.length, POINTS_WINDOW, 'one point per day with attempts, in the last 30 days');
+  assert.equal(stats.accuracy.pct, 100);
+  assert.deepEqual(stats.weakest.map((entry) => entry.id), [item.id]);
+});
+
+test('the noun Game’s statistics read its whole corpus, never the round’s filtered pool', () => {
+  const today = epochDay();
+  const inPool = taggedNoun('libro', ['gender:m', 'plural:-o/-i']);
+  const outside = taggedNoun('camicia', ['gender:f', 'plural:-cia/-gie']);
+  const corpus = [inPool, outside];
+  const store = {};
+  // `outside` was practised in an earlier round and the corpus still carries it, while this
+  // round’s settings keep `-o/-i` only — so it can never be drawn now and must still be counted.
+  recordAttempt(store, outside, true, { now: atDay(today), items: corpus });
+  recordAttempt(store, taggedNoun('nomi-pl-gone', ['gender:m', 'plural:irregolare']), true, { now: atDay(today), items: corpus });
+  const session = nounSession(corpus, 1, {
+    store,
+    settings: { preset: null, include: { plural: ['-o/-i'] }, controls: { count: 1 } },
+  });
+  assert.deepEqual(session.pool.map((entry) => entry.id), [inPool.id], 'the pool really is narrower than the corpus');
+
+  withFakeDocument((doc) => {
+    withFakeTimers((clock) => {
+      const root = doc.createElement('div');
+      const teardown = nomiPluraleGame.play(root, session);
+      const stats = byClass(root, 'stats')[0];
+      // The excluded Item still counts: its Tags have rows and it is the weakest Item on screen.
+      const rows = byClass(stats, 'stat-rows')[0].children;
+      assert.deepEqual(rows.map((row) => row.children[0].textContent), ['gender:f', 'plural:-cia/-gie']);
+      assert.deepEqual(rows.map((row) => row.children[2].textContent), ['25%', '25%']);
+      assert.deepEqual(byTag(stats, 'li').map((node) => node.textContent), [`${outside.prompt} · 25%`]);
+      // An Item the corpus no longer has keeps its stored entry and stays out of both views, while
+      // its points remain the Game’s.
+      assert.ok(store.items['nomi-pl-gone'], 'the removed Item keeps its stored entry');
+      assert.equal(byClass(stats, 'stat')[0].textContent, `${2 * POINTS_CORRECT} pt`);
+      assert.equal(byTag(stats, 'li').length, 1, 'the removed Item is not a weakest Item');
+
+      // The attempt this round writes is snapshotted against the whole corpus too: on a fresh
+      // store the week’s Tag snapshot must carry the excluded Item’s Tags, which a pool-only
+      // snapshot could not know.
+      const roundStore = {};
+      const roundSession = nounSession(corpus, 1, {
+        store: roundStore,
+        settings: { preset: null, include: { plural: ['-o/-i'] }, controls: { count: 1 } },
+      });
+      const roundRoot = doc.createElement('div');
+      const roundTeardown = nomiPluraleGame.play(roundRoot, roundSession);
+      const round = byClass(roundRoot, 'round')[0];
+      const asked = askedItem(round, roundSession.pool);
+      assert.equal(asked.id, inPool.id, 'the filtered pool is the only thing this round can draw');
+      nounOption(round, asked.answer).fire('click');
+      clock.tick(CORRECT_DELAY);
+      assert.deepEqual(roundStore.items[asked.id], { a: 1, c: 1, ema: 0.25, last: today });
+      assert.deepEqual(Object.keys(roundStore.weeks[0].tags).sort(), [
+        'gender:f',
+        'gender:m',
+        'plural:-cia/-gie',
+        'plural:-o/-i',
+      ]);
+      roundTeardown();
+      teardown();
+      assert.equal(root.children.length, 0);
+    });
+  });
+});
+
+test('a noun round writes only the noun Game’s slice, and both verb stores keep theirs', () => {
+  const backend = fakeBackend();
+  const storage = createStorage(backend);
+  const nounStore = storage.store('nomi-plurale');
+  const choiceStore = storage.store('verbi-presente');
+  const revealStore = storage.store('verbi-presente-rivela');
+  const today = epochDay();
+  const pool = nounItems.slice(0, 2);
+
+  withFakeDocument((doc) => {
+    withFakeTimers((clock) => {
+      const root = doc.createElement('div');
+      const teardown = nomiPluraleGame.play(root, nounSession(pool, 1, { store: nounStore }));
+      const round = byClass(root, 'round')[0];
+      const asked = askedItem(round, pool);
+      nounOption(round, asked.answer).fire('click');
+      clock.tick(CORRECT_DELAY);
+
+      // The attempt is the noun Game’s, on the spot, and only the noun Game’s.
+      assert.deepEqual(nounStore.items[asked.id], { a: 1, c: 1, ema: 0.25, last: today });
+      assert.equal(masteryOf(choiceStore, asked.id, today), 0, 'recognition has never seen this noun');
+      assert.equal(masteryOf(revealStore, asked.id, today), 0, 'nor has production');
+      assert.equal(choiceStore.items, undefined, 'recognition’s slice is untouched');
+      assert.equal(revealStore.items, undefined, 'production’s slice is untouched');
+      const games = backend.envelope().data.games;
+      assert.deepEqual(games['nomi-plurale'].store.items[asked.id], { a: 1, c: 1, ema: 0.25, last: today });
+      assert.equal(games['verbi-presente'].store.items, undefined, 'nothing leaked into recognition’s persisted slice');
+      assert.equal(games['verbi-presente-rivela'].store.items, undefined, 'nothing leaked into production’s');
+
+      // The noun Game’s own numbers weight its own draw: the practised noun sinks in nouns and
+      // stays where it was in both verb Games.
+      const drawOf = (/** @type {any} */ store) =>
+        nounRoundQueue(pool, { size: 2, rng: () => 0.5, store, today }).map((entry) => entry.id);
+      assert.deepEqual(drawOf(choiceStore), pool.map((entry) => entry.id), 'uniform over an empty store');
+      assert.equal(drawOf(nounStore)[1], asked.id, 'the noun Game sends it to the back');
+      teardown();
+      assert.equal(root.children.length, 0);
+    });
+  });
+});
+
+test('the noun Game’s own Statistics view swaps with the round, and Summary returns to it', () => {
+  const pool = nounItems.slice(0, 2);
+  const store = {};
+
+  withFakeDocument((doc) => {
+    withFakeTimers((clock) => {
+      const root = doc.createElement('div');
+      const teardown = nomiPluraleGame.play(root, nounSession(pool, 1, { store }));
+      const round = byClass(root, 'round')[0];
+      const stats = byClass(root, 'stats')[0];
+      assert.ok(stats, 'the Game draws its own statistics view');
+      assert.equal(stats.hidden, true, 'and keeps it out of the round until it is asked for');
+      assert.equal(round.hidden, false);
+
+      // Cold, before the round writes anything: the four documented empty states, never a NaN.
+      assert.deepEqual(byTag(stats, 'h2').map((head) => head.textContent), [
+        'Points',
+        'Accuracy',
+        'Skills by Tag',
+        'Weakest items',
+      ]);
+      assert.deepEqual(byClass(stats, 'stat').map((node) => node.textContent), [
+        '0 points',
+        'No attempts in the last 7 days',
+      ]);
+      assert.equal(byClass(stats, 'delta')[0].hidden, true);
+      assert.deepEqual(byClass(stats, 'stat-rows')[0].children.map((node) => node.textContent), [
+        'No tagged attempts yet',
+      ]);
+      assert.deepEqual(byTag(stats, 'li').map((node) => node.textContent), ['No attempts yet']);
+      const coldCharts = byClass(stats, 'chart');
+      assertWellFormedSvg(coldCharts[0].innerHTML);
+      assertSilent(coldCharts[0].innerHTML);
+      assert.equal(coldCharts[1].innerHTML, '', 'no day with attempts means no daily line');
+
+      // One question, answered right, then the loop’s own 700 ms advance.
+      const asked = askedItem(round, pool);
+      nounOption(round, asked.answer).fire('click');
+      clock.tick(CORRECT_DELAY);
+      const summary = byClass(round, 'summary')[0];
+      assert.equal(round.getAttribute('data-state'), 'summary');
+      assert.equal(byClass(round, 'score')[0].textContent, '1/1');
+      assert.deepEqual(
+        nodesOf(summary).filter((node) => node.tagName === 'BUTTON').map((button) => button.textContent),
+        ['Play again', 'Statistics'],
+        'the Game’s own action sits beside Play again, before the host’s Done',
+      );
+      assert.equal(nodesOf(summary).filter((node) => node.tagName === 'A')[0].textContent, 'Done');
+
+      // Statistics is not a route and not a link: it swaps the Game’s two views in place.
+      nounButton(summary, 'Statistics').fire('click');
+      assert.equal(round.hidden, true);
+      assert.equal(stats.hidden, false);
+      assert.equal(byTag(stats, 'a').length, 0, 'the view carries no navigation at all');
+      assert.equal(byClass(stats, 'back').length, 0, 'the host still owns the only quit control');
+      assert.equal(byClass(stats, 'stat')[0].textContent, `${POINTS_CORRECT} pt`);
+      assert.equal(byClass(stats, 'stat')[1].textContent, '100%', 'refreshed from the store the round just wrote');
+      assert.deepEqual(
+        byTag(stats, 'li').map((node) => node.textContent),
+        [`${asked.prompt} · 25%`],
+        'the one noun answered so far is the weakest the view knows',
+      );
+      assert.equal(byClass(stats, 'chart')[1].innerHTML, '', 'one day with attempts is not a line');
+      assert.match(byClass(stats, 'note')[1].textContent, /^1 day with attempts/);
+
+      // Summary returns to the very same round summary: same score, same queue, no navigation.
+      nounButton(stats, 'Summary').fire('click');
+      assert.equal(stats.hidden, true);
+      assert.equal(round.hidden, false);
+      assert.equal(round.getAttribute('data-state'), 'summary');
+      assert.equal(byClass(round, 'score')[0].textContent, '1/1');
+
+      // Play again still samples a fresh queue in place, and records nothing until it is answered.
+      nounButton(summary, 'Play again').fire('click');
+      assert.equal(round.getAttribute('data-state'), 'ask');
+      assert.equal(store.items[asked.id].a, 1);
+      teardown();
+      assert.equal(root.children.length, 0);
+    });
+  });
+});
+
 // ------------------------------------------------------------- the service worker (sw.js)
 
 /** The deployed shape again: `sw.js` sits at the root of the frozen subpath, which is its scope. */

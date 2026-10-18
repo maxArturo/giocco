@@ -16,10 +16,26 @@
  *
  * The host handed over a filtered Pool and an RNG (`engine.js`); `roundLoop()` runs the choice
  * cycle and judges every tap; the store stays opaque to both.
+ *
+ * US-019 adds the progress: an answered question writes `{ a, c, ema, last }` for the Item it
+ * asked, the points it earned, today's local bucket and this week's Tag snapshot into *this*
+ * Game's store, and the round summary's own **Statistics** action draws the four documented
+ * sections from those numbers alone. Not one formula is restated here — `recordAttempt()`,
+ * `statisticsView()` and the points rules are the same US-017 policy the two verb drills use,
+ * imported and handed this Game's own store, so the three Games can share one policy and still
+ * never share a number.
  */
 
 import { roundLoop } from '../../lib/roundLoop.js';
-import { masteryOf, roundCount, shuffle, weightedQueue } from '../verbi-presente/index.js';
+import {
+  POINTS_CORRECT,
+  masteryOf,
+  recordAttempt,
+  roundCount,
+  shuffle,
+  statisticsView,
+  weightedQueue,
+} from '../verbi-presente/index.js';
 
 /**
  * Every declaration literal is annotated with `engine.js`'s own typedefs (`Control`, `Dim`,
@@ -126,6 +142,21 @@ export function questionFor(item, rng) {
   };
 }
 
+/** The statistics view's own action, exactly as the verb Games label it. */
+const STATISTICS_LABEL = 'Statistics';
+
+/**
+ * A Game's `play()` has nowhere to inject a document, so its own chrome (the summary's Statistics
+ * action) and its statistics view draw with the global one — the same default `roundLoop()` itself
+ * uses, and guaranteed present by the time either runs. `tools/sanity.mjs` installs a fake with
+ * `withFakeDocument()`.
+ *
+ * @returns {Document}
+ */
+function activeDocument() {
+  return /** @type {Document} */ (globalThis.document);
+}
+
 /** @type {import('../../engine.js').Game} */
 const nomiPlurale = {
   id: 'nomi-plurale',
@@ -146,14 +177,79 @@ const nomiPlurale = {
   play(root, session) {
     const host = /** @type {HTMLElement} */ (root);
     const items = /** @type {NounItem[]} */ (session.pool);
+    // The statistics describe the Game, not the round: the views read the Game's whole current
+    // corpus, so a filtered round still shows every Tag and every attempted Item — and an Item the
+    // corpus no longer has is left out without its stored entry being deleted.
+    const corpus = Array.isArray(session.content) ? /** @type {NounItem[]} */ (session.content) : items;
+    const store = session.store;
     const count = roundCount(session.settings);
     const rng = session.rng;
+
+    /**
+     * Which Item each drawn question asks. `sample()` is the only place a question is made, so this
+     * can never disagree with what the loop is showing — and identity, not prompt text, decides
+     * which Item an attempt belongs to.
+     * @type {WeakMap<object, NounItem>}
+     */
+    const asked = new WeakMap();
+
     // `sample()` is the loop's only source of a queue, so Play again is always a fresh draw — and
     // mastery is read at draw time from this Game's own store, which is what keeps its progress
     // out of both verb Games despite the shared policy.
     const sample = () =>
-      roundQueue(items, { size: count, rng, store: session.store }).map((item) => questionFor(item, rng));
-    return roundLoop(host, { mode: 'choice', sample }).teardown;
+      roundQueue(items, { size: count, rng, store }).map((item) => {
+        const question = questionFor(item, rng);
+        asked.set(question, item);
+        return question;
+      });
+
+    /** The round and the Game's statistics view: two views of the same Game, swapping in place. */
+    /** @type {HTMLElement | null} */
+    let round = null;
+    /** @type {{ section: HTMLElement, refresh: () => void } | null} */
+    let stats = null;
+
+    /** Show the Game's statistics, refreshed from this Game's store as it stands now. */
+    function showStats() {
+      if (round === null || stats === null) return;
+      stats.refresh();
+      round.hidden = true;
+      stats.section.hidden = false;
+    }
+
+    /** Back to that same round summary — not a route, and not a way out of the Game. */
+    function showSummary() {
+      if (round === null || stats === null) return;
+      stats.section.hidden = true;
+      round.hidden = false;
+    }
+
+    const loop = roundLoop(host, {
+      mode: 'choice',
+      sample,
+      // The answer is recorded the moment the loop judges it — through the shared US-017 policy,
+      // into this Game's own store, over this Game's whole current corpus. The points it earned
+      // are what the summary adds up; a store-less Session still plays, it just forgets.
+      onAnswer: (question, correct) => {
+        const item = asked.get(question);
+        if (item === undefined) return correct ? POINTS_CORRECT : 0;
+        return recordAttempt(store, item, correct, { items: corpus });
+      },
+      // The Game's own action, between Play again and Done (the loop calls this once, at build).
+      summaryActions: (container) => {
+        const button = activeDocument().createElement('button');
+        button.type = 'button';
+        button.className = 'text-btn';
+        button.textContent = STATISTICS_LABEL;
+        button.addEventListener('click', showStats);
+        container.append(button);
+      },
+    });
+
+    round = loop.section;
+    stats = statisticsView(activeDocument(), { store, items: corpus, onSummary: showSummary });
+    host.append(stats.section);
+    return loop.teardown;
   },
 };
 

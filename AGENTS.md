@@ -104,7 +104,12 @@ store and the whole verb corpus alone.
 hand-authored noun corpus, 13 plural patterns × five nouns = 65 Items — is gated against it, and
 its `play()` now plays a real choice round (US-016): the same shared choice interaction as
 `verbi-presente`, whose draw policy it imports (`weightedQueue`/`masteryOf`/`shuffle`/`roundCount`)
-with its own `questionFor` for the noun Item shape, mastery read from its own store. The two
+with its own `questionFor` for the noun Item shape, mastery read from its own store. Since US-019
+it imports that Game's progress core too (`recordAttempt`, `statisticsView`, `POINTS_CORRECT`):
+every answered question is written the moment the shared loop judges it, its summary carries a
+Game-owned **Statistics** action beside Play again and Done, and the four statistics sections are
+computed over the noun store and the whole noun corpus alone, so the three Games share one policy
+and never a number. The two
 verb modules also declare
 `content`, `fields`, `dims` and `presets` (US-012), so the one verb file is gated against both of
 them — their declarations must stay in step, which `tools/sanity.mjs` checks. The boot wiring is
@@ -188,7 +193,7 @@ the choice drill's policy lives: the queue is a weighted draw *without replaceme
 `weight = (1 - mastery) + 0.2` with a constant RNG makes the draw order *be* the weight order,
 which is how a case asserts the weighting deterministically — clamped to
 `min(settings.controls.count, pool.length)`. Mastery is read from the Game's own store
-(`masteryOf`) and is 0 for an unseen Item, so an empty store draws uniformly and a future
+(`masteryOf`) and is 0 for an unseen Item, so an empty store draws uniformly and the
 `onAnswer` that writes `{ a, c, ema, last }` makes weak Items come up more often with no change
 to the draw. Option order is drawn once per question with `session.rng`, never re-shuffled while
 the question is on screen. `roundLoop()` needs a `document` and a Game's `play(root, session)` has
@@ -199,9 +204,9 @@ host state: `recordAttempt(store, item, correct, { items, now })` writes one att
 store it is handed (`{ items: { <id>: { a, c, ema, last } }, points, days: [{ d, a, c, p }],
 weeks: [{ w, tags }] }`), and `statsFor(store, items, now)` returns the four sections' numbers.
 Both take the store as an argument, so `verbi-presente-rivela` (US-018) and `nomi-plurale`
-reuse the same formulas over their own slices without sharing a number; `items` is the Game's
-*whole current corpus* (`session.content`), never the filtered Pool, so a filtered round cannot
-rewrite the views.
+(US-019) reuse the same formulas over their own slices without sharing a number; `items` is the
+Game's *whole current corpus* (`session.content`), never the filtered Pool, so a filtered round
+cannot rewrite the views.
 The store proxy persists every write on the spot, so an attempt made mid-round survives the host
 back control. `statisticsView(doc, { store, items, onSummary })` is the view: it builds the four
 sections once and refreshes them by mutation (the `js/ui.js` rule), it is built hidden and swapped
