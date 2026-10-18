@@ -1,0 +1,15 @@
+{
+  "name": "giocco",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Giocco — a static, mobile-first Italian-learning PWA.",
+  "type": "module",
+  "scripts": {
+    "check": "node tools/check.mjs",
+    "typecheck": "npx tsc --noEmit",
+    "test": "node tools/check.mjs --selftest"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}
