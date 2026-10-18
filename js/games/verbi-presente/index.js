@@ -180,6 +180,23 @@ export function weightedQueue(items, options = {}) {
 }
 
 /**
+ * The round's queue for any Game that draws from a mastery-aware weighted pool: `size` distinct
+ * Items, weakest (lowest mastery) first in expectation, with mastery read from the store it is
+ * handed — so each Game passes its own store and none can borrow another's numbers.
+ *
+ * @param {VerbItem[]} items the filtered Pool
+ * @param {{ size?: number, rng?: () => number, store?: unknown, today?: number }} [options]
+ * @returns {VerbItem[]}
+ */
+export function roundQueue(items, options = {}) {
+  return weightedQueue(items, {
+    size: options.size,
+    rng: options.rng,
+    mastery: (item) => masteryOf(options.store, item.id, options.today),
+  });
+}
+
+/**
  * One question: the Item's prompt, its answer, and its own four options. The answer plus the
  * three authored distractors are always all four — nothing is sampled from another Item.
  *
@@ -798,6 +815,55 @@ export function statisticsView(doc, options) {
 }
 
 /**
+ * The Game's **Statistics** summary action and the view it opens, as one piece: all three Games
+ * show the same pair, so it is built here beside the policy that fills it. `summaryActions:
+ * panel.action` puts the button between Play again and Done, `bind()` ties the view to the round
+ * it swaps with, and the Game appends `panel.section` to its own root — hidden until the action is
+ * used, never a route, and carrying no link of its own.
+ *
+ * @param {{ store: unknown, items?: VerbItem[], document?: Document }} options
+ * @returns {{
+ *   section: HTMLElement,
+ *   action: (container: HTMLElement) => void,
+ *   bind: (round: HTMLElement) => void,
+ * }}
+ */
+export function statisticsPanel(options) {
+  const doc = options.document ?? activeDocument();
+  /** The round this view belongs to, once the Game has built one. @type {HTMLElement | null} */
+  let round = null;
+
+  const view = statisticsView(doc, {
+    store: options.store,
+    items: options.items,
+    onSummary: () => swap(false),
+  });
+
+  /** The round and the statistics are two views of one Game, swapping in place. @param {boolean} showStats */
+  function swap(showStats) {
+    if (round === null) return;
+    if (showStats) view.refresh();
+    round.hidden = showStats;
+    view.section.hidden = !showStats;
+  }
+
+  return {
+    section: view.section,
+    action(container) {
+      const button = doc.createElement('button');
+      button.type = 'button';
+      button.className = 'text-btn';
+      button.textContent = STATISTICS_LABEL;
+      button.addEventListener('click', () => swap(true));
+      container.append(button);
+    },
+    bind(roundSection) {
+      round = roundSection;
+    },
+  };
+}
+
+/**
  * A Game's `play()` has nowhere to inject a document, so its own chrome (the summary's Statistics
  * action) and its statistics view draw with the global one — exactly the default `roundLoop()`
  * itself uses, and guaranteed present by the time either runs. `tools/sanity.mjs` installs a fake
@@ -847,36 +913,13 @@ const verbiPresente = {
     // `sample()` is the loop's only source of a queue, so Play again is always a fresh draw — and
     // mastery is read at draw time, which is what makes a weak Item come up more often.
     const sample = () =>
-      weightedQueue(items, {
-        size: count,
-        rng,
-        mastery: (item) => masteryOf(store, item.id),
-      }).map((item) => {
+      roundQueue(items, { size: count, rng, store }).map((item) => {
         const question = questionFor(item, rng);
         asked.set(question, item);
         return question;
       });
 
-    /** The round and the Game's statistics view: two views of the same Game, swapping in place. */
-    /** @type {HTMLElement | null} */
-    let round = null;
-    /** @type {{ section: HTMLElement, refresh: () => void } | null} */
-    let stats = null;
-
-    /** Show the Game's statistics, refreshed from the store as it stands now. */
-    function showStats() {
-      if (round === null || stats === null) return;
-      stats.refresh();
-      round.hidden = true;
-      stats.section.hidden = false;
-    }
-
-    /** Back to that same round summary — not a route, and not a way out of the Game. */
-    function showSummary() {
-      if (round === null || stats === null) return;
-      stats.section.hidden = true;
-      round.hidden = false;
-    }
+    const stats = statisticsPanel({ store, items: corpus });
 
     const loop = roundLoop(host, {
       mode: 'choice',
@@ -885,25 +928,17 @@ const verbiPresente = {
       // the summary adds up. `session.store` is this Game's slice and nobody else's.
       onAnswer: (question, correct) => {
         const item = asked.get(question);
-        if (item === undefined) return correct ? POINTS_CORRECT : 0;
+        if (item === undefined) throw new Error('giocco: a question this Game did not draw');
         return recordAttempt(store, item, correct, { items: corpus });
       },
       // The Game's own action, between Play again and Done (the loop calls this once, at build).
-      summaryActions: (container) => {
-        const button = activeDocument().createElement('button');
-        button.type = 'button';
-        button.className = 'text-btn';
-        button.textContent = STATISTICS_LABEL;
-        button.addEventListener('click', showStats);
-        container.append(button);
-      },
+      summaryActions: stats.action,
     });
 
-    round = loop.section;
-    stats = statisticsView(activeDocument(), { store, items: corpus, onSummary: showSummary });
+    stats.bind(loop.section);
     host.append(stats.section);
     return loop.teardown;
   },
 };
 
-export default verbiPresente
+export default verbiPresente;

@@ -9,14 +9,14 @@
  * the two are two Games sharing one file, never a mode inside one, and their Mastery is never
  * averaged — this Game reads and writes only its own `session.store`.
  *
- * The one thing they deliberately share is the *policy*: the weighted, without-replacement queue
- * (`weightedQueue`), the mastery read (`masteryOf`), the round-count control (`roundCount`) and the
- * whole progress core (`recordAttempt`, `statisticsView`) are imported from
- * `../verbi-presente/index.js` rather than copied, so "the same policy as the choice Game" is a
- * fact of the code and not a hope. Nothing about those helpers reads a store other than the one
- * this Game hands them: every one of them takes the store as an argument, so production progress
- * is written into, and read from, `storage.store('verbi-presente-rivela')` alone — the two verb
- * drills share one corpus and one policy and never share a number.
+ * The one thing they deliberately share is the *policy*: the store-reading draw (`roundQueue`),
+ * the round-count control (`roundCount`), the whole progress core (`recordAttempt`) and the
+ * statistics pair (`statisticsPanel`) are imported from `../verbi-presente/index.js` rather than
+ * copied, so "the same policy as the choice Game" is a fact of the code and not a hope. Nothing
+ * about those helpers reads a store other than the one this Game hands them: every one of them
+ * takes the store as an argument, so production progress is written into, and read from,
+ * `storage.store('verbi-presente-rivela')` alone — the two verb drills share one corpus and one
+ * policy and never share a number.
  *
  * The host handed over a filtered Pool and an RNG (`engine.js`); `roundLoop()` runs the
  * reveal/self-grade cycle; the store stays opaque to both.
@@ -24,12 +24,10 @@
 
 import { roundLoop } from '../../lib/roundLoop.js';
 import {
-  POINTS_CORRECT,
-  masteryOf,
   recordAttempt,
   roundCount,
-  statisticsView,
-  weightedQueue,
+  roundQueue,
+  statisticsPanel,
 } from '../verbi-presente/index.js';
 
 /** @type {import('../../engine.js').Control} The shared round-count control every Game declares. */
@@ -78,24 +76,6 @@ const PRESETS = [
 /** @typedef {import('../verbi-presente/index.js').VerbItem} VerbItem */
 
 /**
- * The round's queue: the same weighted, without-replacement draw as the choice Game — `size`
- * distinct Items, weakest (lowest mastery) first in expectation — with mastery read from *this*
- * Game's own store, so production practice never borrows recognition's numbers. An empty Pool
- * yields an empty queue; the settings screen is what refuses to start one.
- *
- * @param {VerbItem[]} items the filtered Pool
- * @param {{ size?: number, rng?: () => number, store?: unknown, today?: number }} [options]
- * @returns {VerbItem[]}
- */
-export function roundQueue(items, options = {}) {
-  return weightedQueue(items, {
-    size: options.size,
-    rng: options.rng,
-    mastery: (item) => masteryOf(options.store, item.id, options.today),
-  });
-}
-
-/**
  * One reveal question: the Item's prompt and its answer. A reveal Game never draws options — the
  * answer exists to be shown, not to be offered.
  *
@@ -104,21 +84,6 @@ export function roundQueue(items, options = {}) {
  */
 export function revealQuestion(item) {
   return { prompt: item.prompt, answer: item.answer };
-}
-
-/** The statistics view's own action, exactly as the choice Game labels it. */
-const STATISTICS_LABEL = 'Statistics';
-
-/**
- * A Game's `play()` has nowhere to inject a document, so its own chrome (the summary's Statistics
- * action) and its statistics view draw with the global one — the same default `roundLoop()` itself
- * uses, and guaranteed present by the time either runs. `tools/sanity.mjs` installs a fake with
- * `withFakeDocument()`.
- *
- * @returns {Document}
- */
-function activeDocument() {
-  return /** @type {Document} */ (globalThis.document);
 }
 
 /** @type {import('../../engine.js').Game} */
@@ -166,26 +131,7 @@ const verbiPresenteRivela = {
         return question;
       });
 
-    /** The round and the Game's statistics view: two views of the same Game, swapping in place. */
-    /** @type {HTMLElement | null} */
-    let round = null;
-    /** @type {{ section: HTMLElement, refresh: () => void } | null} */
-    let stats = null;
-
-    /** Show the Game's statistics, refreshed from this Game's store as it stands now. */
-    function showStats() {
-      if (round === null || stats === null) return;
-      stats.refresh();
-      round.hidden = true;
-      stats.section.hidden = false;
-    }
-
-    /** Back to that same round summary — not a route, and not a way out of the Game. */
-    function showSummary() {
-      if (round === null || stats === null) return;
-      stats.section.hidden = true;
-      round.hidden = false;
-    }
+    const stats = statisticsPanel({ store, items: corpus });
 
     const loop = roundLoop(host, {
       mode: 'reveal',
@@ -195,25 +141,17 @@ const verbiPresenteRivela = {
       // earned are what the summary adds up; a store-less Session still plays, it just forgets.
       onAnswer: (question, correct) => {
         const item = asked.get(question);
-        if (item === undefined) return correct ? POINTS_CORRECT : 0;
+        if (item === undefined) throw new Error('giocco: a question this Game did not draw');
         return recordAttempt(store, item, correct, { items: corpus });
       },
       // The Game's own action, between Play again and Done (the loop calls this once, at build).
-      summaryActions: (container) => {
-        const button = activeDocument().createElement('button');
-        button.type = 'button';
-        button.className = 'text-btn';
-        button.textContent = STATISTICS_LABEL;
-        button.addEventListener('click', showStats);
-        container.append(button);
-      },
+      summaryActions: stats.action,
     });
 
-    round = loop.section;
-    stats = statisticsView(activeDocument(), { store, items: corpus, onSummary: showSummary });
+    stats.bind(loop.section);
     host.append(stats.section);
     return loop.teardown;
   },
 };
 
-export default verbiPresenteRivela
+export default verbiPresenteRivela;

@@ -62,6 +62,7 @@ import verbiPresenteGame, {
   questionFor,
   recordAttempt,
   roundCount,
+  roundQueue,
   shuffle,
   statisticsView,
   statsFor,
@@ -69,11 +70,9 @@ import verbiPresenteGame, {
 } from '../js/games/verbi-presente/index.js';
 import verbiPresenteRivelaGame, {
   revealQuestion,
-  roundQueue,
 } from '../js/games/verbi-presente-rivela/index.js';
 import nomiPluraleGame, {
   questionFor as nounQuestionFor,
-  roundQueue as nounRoundQueue,
 } from '../js/games/nomi-plurale/index.js';
 import { boot } from '../js/app.js';
 
@@ -3414,14 +3413,14 @@ test('the noun Game draws the same weighted, without-replacement queue', () => {
 
   // The same Efraimidis–Spirakis key the verb Games use: with a constant RNG the draw order *is*
   // the weight order, weakest first, ties kept in pool order.
-  const queue = nounRoundQueue(pool, { size: 4, rng: () => 0.5, store, today });
+  const queue = roundQueue(pool, { size: 4, rng: () => 0.5, store, today });
   assert.deepEqual(queue.map((entry) => entry.id), ['casa', 'film', 'cane', 'libro']);
 
   // The round length is the choice, clamped by the pool; no Item can repeat in a round.
-  assert.equal(nounRoundQueue(pool, { size: 20, rng: () => 0.5, store, today }).length, 4, 'min(count, pool)');
-  assert.deepEqual(nounRoundQueue([], { size: 5, rng: () => 0.5, store, today }), [], 'an empty pool has no queue');
+  assert.equal(roundQueue(pool, { size: 20, rng: () => 0.5, store, today }).length, 4, 'min(count, pool)');
+  assert.deepEqual(roundQueue([], { size: 5, rng: () => 0.5, store, today }), [], 'an empty pool has no queue');
   for (const seed of [1, 7, 99]) {
-    const full = nounRoundQueue(pool, { size: 4, rng: createRng(seed), store, today });
+    const full = roundQueue(pool, { size: 4, rng: createRng(seed), store, today });
     assert.equal(full.length, 4);
     assert.equal(new Set(full.map((entry) => entry.id)).size, 4, 'drawn without replacement');
   }
@@ -3442,7 +3441,7 @@ test('the noun Game reads mastery from its own store, never a verb Game\u2019s',
   revealStore.items = { cane: { ema: 1, last: today } };
 
   const draw = (/** @type {any} */ store) =>
-    nounRoundQueue(pool, { size: 4, rng: () => 0.5, store, today }).map((entry) => entry.id);
+    roundQueue(pool, { size: 4, rng: () => 0.5, store, today }).map((entry) => entry.id);
   assert.deepEqual(draw(nounStore), ['libro', 'casa', 'cane', 'film'], 'an empty noun store leaves the pool order alone');
   assert.deepEqual(draw(nounStore), draw(storage.store('nomi-plurale')), 'nothing leaked in from either verb Game');
 
@@ -3788,7 +3787,7 @@ test('a noun round writes only the noun Game’s slice, and both verb stores kee
       // The noun Game’s own numbers weight its own draw: the practised noun sinks in nouns and
       // stays where it was in both verb Games.
       const drawOf = (/** @type {any} */ store) =>
-        nounRoundQueue(pool, { size: 2, rng: () => 0.5, store, today }).map((entry) => entry.id);
+        roundQueue(pool, { size: 2, rng: () => 0.5, store, today }).map((entry) => entry.id);
       assert.deepEqual(drawOf(choiceStore), pool.map((entry) => entry.id), 'uniform over an empty store');
       assert.equal(drawOf(nounStore)[1], asked.id, 'the noun Game sends it to the back');
       teardown();

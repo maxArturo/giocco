@@ -68,7 +68,7 @@ chart actually looks at its rendered size — stays a manual browser/device chec
 sizes are the one thing read out of `styles.css` by a case.
 
 Status: **host engine.** `index.html`, `styles.css`, `manifest.webmanifest`, `icons/`,
-`.nojekyll`, `sw.js` (the classic service worker: the four-URL shell precache, the three fetch
+`.nojekyll`, `sw.js` (the classic service worker: the four-URL shell precache, the four fetch
 strategies and the two rejections), `js/app.js` (boot: register the service worker → registry →
 every registered content file → router/render),
 `js/storage.js` (envelope, `migrate()`, per-Game
@@ -86,17 +86,20 @@ chart helpers a Game's own statistics view draws with) exist, and `content/verbi
 `min(chosen count, pool.length)` distinct Items, each asked with its own answer plus its three
 authored distractors in a shuffled four-option set, handed to `roundLoop()` in `choice` mode.
 Its named exports (`weightedQueue`, `questionFor`, `itemWeight`, `masteryOf`, `epochDay`,
-`shuffle`, `roundCount`) are the draw policy the other Games import rather than copy, and since
-US-017 they include the progress core (`recordAttempt`, `statsFor`, `masteredOf`, the bounded
+`shuffle`, `roundCount`, and the store-reading `roundQueue`) are the draw policy the other Games
+import rather than copy, and since US-017 they include the progress core (`recordAttempt`,
+`statsFor`, `masteredOf`, the bounded
 history and the `statisticsView()` the Game draws with): the Game records `{ a, c, ema, last }`
 per Item, the points, 90 daily buckets and 26 weekly Tag snapshots in **its own** store, and its
-round summary carries a Game-owned **Statistics** action beside Play again and Done.
+round summary carries a Game-owned **Statistics** action beside Play again and Done — the action
+plus the in-place view it opens are `statisticsPanel()`, so the three Games share one pair of
+summary controls and still draw each view from their own store alone.
 `js/games/verbi-presente-rivela/index.js` plays a real reveal round (US-014): it imports that
-policy (`weightedQueue`, `masteryOf`, `roundCount`), draws the same weighted, without-replacement
+policy (`roundQueue`, `roundCount`), draws the same weighted, without-replacement
 queue and hands `roundLoop()` `mode: 'reveal'` with `{ prompt, answer }` questions — one prompt,
 one *Show answer*, then the two self-grade labels, nothing red and no auto-advance. Mastery is
 read from *its own* `session.store`, so production progress never borrows recognition's; since
-US-018 it also imports that Game's progress core (`recordAttempt`, `statisticsView`), so every
+US-018 it also imports that Game's progress core (`recordAttempt`, `statisticsPanel`), so every
 self-grade is written the moment it is given, its summary carries a Game-owned **Statistics**
 action beside Play again and Done, and the four statistics sections are computed over production's
 store and the whole verb corpus alone.
@@ -104,9 +107,9 @@ store and the whole verb corpus alone.
 `irreg`, `cefr`) and the three noun `presets` (US-015), so `content/nomi-plurale.json` — the
 hand-authored noun corpus, 13 plural patterns × five nouns = 65 Items — is gated against it, and
 its `play()` now plays a real choice round (US-016): the same shared choice interaction as
-`verbi-presente`, whose draw policy it imports (`weightedQueue`/`masteryOf`/`shuffle`/`roundCount`)
+`verbi-presente`, whose draw policy it imports (`roundQueue`/`shuffle`/`roundCount`)
 with its own `questionFor` for the noun Item shape, mastery read from its own store. Since US-019
-it imports that Game's progress core too (`recordAttempt`, `statisticsView`, `POINTS_CORRECT`):
+it imports that Game's progress core too (`recordAttempt`, `statisticsPanel`):
 every answered question is written the moment the shared loop judges it, its summary carries a
 Game-owned **Statistics** action beside Play again and Done, and the four statistics sections are
 computed over the noun store and the whole noun corpus alone, so the three Games share one policy
@@ -216,7 +219,10 @@ The store proxy persists every write on the spot, so an attempt made mid-round s
 back control. `statisticsView(doc, { store, items, onSummary })` is the view: it builds the four
 sections once and refreshes them by mutation (the `js/ui.js` rule), it is built hidden and swapped
 with the round's own node in place — never a route, never a link — and its only action is the
-Game-owned **Summary** that returns to the same round summary. A chart is inserted with
+Game-owned **Summary** that returns to the same round summary. `statisticsPanel({ store, items })`
+is the same view plus the summary **Statistics** action that opens it and the swap between the two,
+so each Game's `play()` binds the pair with `stats.bind(loop.section)` and appends it once. A chart
+is inserted with
 `innerHTML` (the one place a Game does so, because `js/lib/charts.js` returns a string) and always
 sits next to a written summary; empty states are strings, never `NaN`.
 - `js/lib/charts.js` is the Game-side statistics decoration and imports nothing: `sparkline(vals,

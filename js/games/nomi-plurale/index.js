@@ -9,7 +9,7 @@
  *
  * `id` is permanent (it is in the route and the storage key); `title` is display-only. Its
  * counters, points and Mastery stay in its own store, separate from both verb Games: the draw
- * reads `masteryOf` from `session.store`, which boot fills with this id's slice and nothing else,
+ * reads mastery from `session.store`, which boot fills with this id's slice and nothing else,
  * and the verbs can neither see nor average it. The shared *policy* is imported from
  * `../verbi-presente/index.js` rather than copied, so the weight and the queue length cannot
  * drift between the three drills while the stores stay per-id.
@@ -21,20 +21,18 @@
  * asked, the points it earned, today's local bucket and this week's Tag snapshot into *this*
  * Game's store, and the round summary's own **Statistics** action draws the four documented
  * sections from those numbers alone. Not one formula is restated here — `recordAttempt()`,
- * `statisticsView()` and the points rules are the same US-017 policy the two verb drills use,
+ * `statisticsPanel()` and the points rules are the same US-017 policy the two verb drills use,
  * imported and handed this Game's own store, so the three Games can share one policy and still
  * never share a number.
  */
 
 import { roundLoop } from '../../lib/roundLoop.js';
 import {
-  POINTS_CORRECT,
-  masteryOf,
   recordAttempt,
   roundCount,
+  roundQueue,
   shuffle,
-  statisticsView,
-  weightedQueue,
+  statisticsPanel,
 } from '../verbi-presente/index.js';
 
 /**
@@ -110,20 +108,10 @@ const PRESETS = [
 /**
  * The round's queue: the same weighted, without-replacement draw as the choice verb Game —
  * `min(size, items.length)` distinct Items, weakest (lowest mastery) first in expectation — with
- * mastery read from *this* Game's own store, so noun practice never borrows a verb Game's
- * numbers. An empty Pool yields an empty queue; the settings screen is what refuses to start one.
- *
- * @param {NounItem[]} items the filtered Pool
- * @param {{ size?: number, rng?: () => number, store?: unknown, today?: number }} [options]
- * @returns {NounItem[]}
+ * mastery read from *this* Game's own store, so noun practice never borrows a verb Game's numbers.
+ * That store-reading draw is `roundQueue()` from the choice verb Game, imported rather than
+ * restated. An empty Pool yields an empty queue; the settings screen is what refuses to start one.
  */
-export function roundQueue(items, options = {}) {
-  return weightedQueue(items, {
-    size: options.size,
-    rng: options.rng,
-    mastery: (item) => masteryOf(options.store, item.id, options.today),
-  });
-}
 
 /**
  * One question: the Item's prompt, its answer, and its own four options. The answer plus the
@@ -140,21 +128,6 @@ export function questionFor(item, rng) {
     answer: item.answer,
     options: shuffle([item.answer, ...item.distractors], rng),
   };
-}
-
-/** The statistics view's own action, exactly as the verb Games label it. */
-const STATISTICS_LABEL = 'Statistics';
-
-/**
- * A Game's `play()` has nowhere to inject a document, so its own chrome (the summary's Statistics
- * action) and its statistics view draw with the global one — the same default `roundLoop()` itself
- * uses, and guaranteed present by the time either runs. `tools/sanity.mjs` installs a fake with
- * `withFakeDocument()`.
- *
- * @returns {Document}
- */
-function activeDocument() {
-  return /** @type {Document} */ (globalThis.document);
 }
 
 /** @type {import('../../engine.js').Game} */
@@ -203,26 +176,7 @@ const nomiPlurale = {
         return question;
       });
 
-    /** The round and the Game's statistics view: two views of the same Game, swapping in place. */
-    /** @type {HTMLElement | null} */
-    let round = null;
-    /** @type {{ section: HTMLElement, refresh: () => void } | null} */
-    let stats = null;
-
-    /** Show the Game's statistics, refreshed from this Game's store as it stands now. */
-    function showStats() {
-      if (round === null || stats === null) return;
-      stats.refresh();
-      round.hidden = true;
-      stats.section.hidden = false;
-    }
-
-    /** Back to that same round summary — not a route, and not a way out of the Game. */
-    function showSummary() {
-      if (round === null || stats === null) return;
-      stats.section.hidden = true;
-      round.hidden = false;
-    }
+    const stats = statisticsPanel({ store, items: corpus });
 
     const loop = roundLoop(host, {
       mode: 'choice',
@@ -232,22 +186,14 @@ const nomiPlurale = {
       // are what the summary adds up; a store-less Session still plays, it just forgets.
       onAnswer: (question, correct) => {
         const item = asked.get(question);
-        if (item === undefined) return correct ? POINTS_CORRECT : 0;
+        if (item === undefined) throw new Error('giocco: a question this Game did not draw');
         return recordAttempt(store, item, correct, { items: corpus });
       },
       // The Game's own action, between Play again and Done (the loop calls this once, at build).
-      summaryActions: (container) => {
-        const button = activeDocument().createElement('button');
-        button.type = 'button';
-        button.className = 'text-btn';
-        button.textContent = STATISTICS_LABEL;
-        button.addEventListener('click', showStats);
-        container.append(button);
-      },
+      summaryActions: stats.action,
     });
 
-    round = loop.section;
-    stats = statisticsView(activeDocument(), { store, items: corpus, onSummary: showSummary });
+    stats.bind(loop.section);
     host.append(stats.section);
     return loop.teardown;
   },
