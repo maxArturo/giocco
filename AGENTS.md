@@ -32,5 +32,21 @@ A Game declares the exact Item field names in `fields` (default
 `['id', 'prompt', 'answer', 'distractors', 'tags']`); the gate rejects an Item with an extra or
 missing field. Extend `tools/selftest.mjs` (not a new framework) when adding a gate rule.
 
-Status: **tooling and gates only.** The app itself — `index.html`, `styles.css`, `sw.js`,
-`js/**`, `content/*.json`, `icons/` — does not exist yet.
+Status: **shell + tooling and gates.** `index.html`, `styles.css`, `manifest.webmanifest`,
+`icons/`, `.nojekyll` and the `js/app.js` boot placeholder exist. `sw.js`, the host modules and
+`content/*.json` do not.
+
+## Shell
+
+- Every URL is relative (`./js/app.js`, `./icons/icon-192.png`), so the shell is deployable from
+the `/giocco/` subpath and from a root dev server unchanged. `manifest.webmanifest` uses
+`start_url: "./"`.
+- `styles.css` is the only stylesheet and holds every shared primitive (shell, hub, settings,
+the `roundLoop()` markup, statistics rows). There is no per-Game stylesheet and no build step.
+- `js/app.js` is a boot placeholder so the shell has no broken asset reference; the registry →
+content → router wiring lands there later. Service-worker registration is not in `index.html`
+yet — it arrives with `sw.js`.
+
+To check the shell the way it is deployed, symlink the repo into a parent directory and serve
+that (`ln -s $PWD /tmp/serve/giocco && cd /tmp/serve && python3 -m http.server 8001`), then load
+`http://127.0.0.1:8001/giocco/`.
