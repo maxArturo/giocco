@@ -226,6 +226,9 @@ button {
 }
 
 .chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 40px;
   padding: 0 14px;
   border: 1px solid var(--line);
@@ -239,6 +242,12 @@ button {
   border-color: var(--accent);
   background: var(--tint);
   font-weight: 600;
+}
+
+/* The preset row's "Custom": a state, not a choice — dashed and muted, never tappable. */
+.chip.custom {
+  border-style: dashed;
+  color: var(--muted);
 }
 
 .accordion {
@@ -309,6 +318,11 @@ button {
 
 .value-row:last-child {
   border-bottom: 0;
+}
+
+.value-row .labels {
+  flex: 1;
+  min-width: 0;
 }
 
 .value-row .label {
@@ -395,6 +409,9 @@ button {
 }
 
 .start {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 52px;
   padding: 0 20px;
   border: 0;

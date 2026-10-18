@@ -794,18 +794,24 @@ test('the router resolves ids against the registry by default, and a router need
 /**
  * A `document`-shaped fake covering the handful of DOM members `js/ui.js` builds with, so the
  * host screens' *structure* can be checked in Node. It proves what was built and what it links
- * to, never how it looks: layout, focus, safe areas and taps still need the browser.
+ * to, never how it looks: layout, focus, safe areas and taps still need the browser. Nodes carry
+ * just enough event support (`addEventListener` storing listeners, `fire(type)` calling them) for
+ * a case to tap what the screen built, which is how the settings screen's behaviour is covered.
  *
  * @returns {{ createElement: (tag: string) => any }}
  */
 function fakeDocument() {
   /** @param {string} tagName */
   const createElement = (tagName) => {
+    /** @type {Record<string, Array<(event: unknown) => void>>} */
+    const listeners = {};
     const node = {
       tagName: tagName.toUpperCase(),
       className: '',
       children: [],
       attributes: {},
+      disabled: false,
+      hidden: false,
       _text: '',
       // As in the DOM: assigning text replaces the children it was holding.
       get textContent() {
@@ -828,6 +834,19 @@ function fakeDocument() {
       setAttribute(name, value) {
         node.attributes[name] = String(value);
       },
+      removeAttribute(name) {
+        delete node.attributes[name];
+      },
+      addEventListener(type, listener) {
+        (listeners[type] ??= []).push(listener);
+      },
+      removeEventListener(type, listener) {
+        listeners[type] = (listeners[type] ?? []).filter((entry) => entry !== listener);
+      },
+      /** Tap or otherwise trigger this node in a check. @param {string} type */
+      fire(type) {
+        for (const listener of [...(listeners[type] ?? [])]) listener({ type, target: node });
+      },
       append(...nodes) {
         node.children.push(...nodes);
       },
@@ -849,6 +868,9 @@ const byClass = (root, className) => nodesOf(root).filter((node) => node.classNa
 
 /** @param {any} root @param {string} tag */
 const byTag = (root, tag) => nodesOf(root).filter((node) => node.tagName === tag.toUpperCase());
+
+/** Every node carrying an exact attribute value. @param {any} root @param {string} name @param {string} value */
+const byAttr = (root, name, value) => nodesOf(root).filter((node) => node.getAttribute(name) === value);
 
 /** The one declaration block a selector owns in the shipped stylesheet. @param {string} selector */
 function cssBlock(selector) {
@@ -961,11 +983,11 @@ test('a hub card opens that Game’s settings route, and the back control return
   const log = [];
   const session = { pool: [], content: null, settings: null, rng: Math.random, store: null };
 
-  // The render a boot wires up: this is the composition the router owns, with US-007's settings
-  // screen standing in as a marker because it does not exist yet.
+  // The render a boot wires up: this is the composition the router owns — the real hub, the
+  // real settings screen, the real Game chrome — over a Game route whose Game does nothing yet.
   const router = createRouter({
     window: win,
-    render: (route) => {
+    render: (route, host) => {
       if (route.name === 'hub') {
         log.push('hub');
         ui.hub(root);
@@ -983,8 +1005,15 @@ test('a hub card opens that Game’s settings route, and the back control return
         };
       }
       log.push(`settings:${route.id}`);
-      root.replaceChildren();
-      return () => log.push(`teardown settings:${route.id}`);
+      const teardown = ui.settingsScreen(root, game, {
+        settings: { preset: null, include: {}, controls: {} },
+        items: [],
+        navigate: host.navigate,
+      });
+      return () => {
+        teardown();
+        log.push(`teardown settings:${route.id}`);
+      };
     },
   });
 
@@ -1019,6 +1048,362 @@ test('the host screens need a document, and the browser path takes none', () => 
   const ui = createUi(fakeDocument());
   assert.equal(typeof ui.hub, 'function');
   assert.equal(typeof ui.gameScreen, 'function');
+  assert.equal(typeof ui.settingsScreen, 'function');
+});
+
+// ------------------------------------------------------------- the settings screen (US-007)
+
+/** A settings-screen fixture: two Dimensions, one Preset, one control — the shipped shape. */
+const settingsGame = {
+  id: 'verbi-presente',
+  title: 'Verbi · presente',
+  play: () => () => {},
+  dims: [
+    { dim: 'reg', values: ['regular', 'spelling', 'irregular'] },
+    { dim: 'person', values: ['1s', '2s'] },
+  ],
+  presets: [{ id: 'a1', label: 'A1 · regolari', include: { reg: ['regular', 'spelling'] } }],
+  controls: [{ id: 'count', label: 'Round', options: [5, 10, 20], default: 10 }],
+};
+
+/** `n` Items carrying exactly these tags. @param {string} prefix @param {string[]} tags @param {number} n */
+function taggedItems(prefix, tags, n) {
+  return Array.from({ length: n }, (_, index) => item(`${prefix}-${index}`, tags));
+}
+
+/**
+ * 26 Items: 6 per regular/spelling × person pair and 2 irregular ones, so `reg:irregular`
+ * resolves below the gate's five and every other value clears it.
+ */
+const settingsItems = [
+  ...taggedItems('regular-1s', ['reg:regular', 'person:1s'], 6),
+  ...taggedItems('regular-2s', ['reg:regular', 'person:2s'], 6),
+  ...taggedItems('spelling-1s', ['reg:spelling', 'person:1s'], 6),
+  ...taggedItems('spelling-2s', ['reg:spelling', 'person:2s'], 6),
+  ...taggedItems('irregular-1s', ['reg:irregular', 'person:1s'], 2),
+];
+
+/**
+ * Render the settings screen over a live settings object, and remember where `Start round`
+ * would navigate, so a case can tap the built form.
+ *
+ * @param {{ settings?: any, items?: any[], game?: any }} [options]
+ */
+function settingsHarness(options = {}) {
+  const doc = fakeDocument();
+  const ui = createUi(doc);
+  const root = doc.createElement('div');
+  /** @type {string[]} */
+  const log = [];
+  const settings = options.settings ?? { preset: null, include: {}, controls: {} };
+  const teardown = ui.settingsScreen(root, options.game ?? settingsGame, {
+    settings,
+    items: options.items ?? settingsItems,
+    navigate: (hash) => log.push(hash),
+  });
+  return { doc, ui, root, settings, log, teardown };
+}
+
+/** The value rows, keyed by their declared value. @param {any} root */
+function valueRows(root) {
+  return new Map(byClass(root, 'value-row').map((row) => [row.getAttribute('data-value'), row]));
+}
+
+/** @param {any} row @param {string} className */
+const inRow = (row, className) => byClass(row, className)[0];
+
+test('the settings screen is presets, one accordion per Dimension in order, controls, then the footer', () => {
+  const { root } = settingsHarness();
+  const screen = byClass(root, 'settings')[0];
+
+  assert.deepEqual(
+    screen.children.map((node) => node.className),
+    ['', 'presets', 'accordion', 'accordion', 'control-row', 'settings-footer'],
+    'top to bottom: title, Preset chips, Dimensions in declared order, controls, footer',
+  );
+  assert.equal(screen.children[0].tagName, 'H1');
+  assert.equal(screen.children[0].textContent, 'Verbi · presente');
+  assert.equal(screen.getAttribute('data-game'), 'verbi-presente');
+
+  const presetRow = screen.children[1];
+  assert.deepEqual(presetRow.children.map((node) => node.textContent), ['A1 · regolari', 'Custom']);
+  assert.equal(presetRow.children[0].tagName, 'BUTTON');
+  assert.equal(byClass(root, 'chip custom')[0].tagName, 'SPAN', 'Custom is a state, not a choice');
+
+  assert.deepEqual(byClass(root, 'accordion').map((node) => node.getAttribute('data-dim')), ['reg', 'person']);
+  assert.deepEqual(
+    byClass(root, 'acc-head').map((head) => head.getAttribute('aria-expanded')),
+    ['true', 'false'],
+    'only the first declared Dimension is open',
+  );
+  assert.deepEqual(byClass(root, 'acc-body').map((body) => body.hidden), [false, true]);
+  assert.deepEqual(
+    byClass(root, 'acc-head')[0].children.map((node) => node.textContent),
+    ['reg', '3 of 3', '⌄'],
+    'header: label, selected of available, chevron',
+  );
+
+  assert.deepEqual([...valueRows(root).keys()], ['regular', 'spelling', 'irregular', '1s', '2s']);
+  const switches = byClass(root, 'switch');
+  assert.equal(switches.length, 5);
+  assert.deepEqual(switches.map((sw) => sw.getAttribute('role')), Array(5).fill('switch'));
+  assert.deepEqual(switches.map((sw) => sw.getAttribute('aria-label')), ['regular', 'spelling', 'irregular', '1s', '2s']);
+
+  const controlRow = byClass(root, 'control-row')[0];
+  assert.equal(controlRow.getAttribute('data-control'), 'count');
+  assert.deepEqual(byClass(controlRow, 'controls')[0].children.map((chip) => chip.textContent), ['5', '10', '20']);
+
+  const footer = screen.children[5];
+  assert.deepEqual(footer.children.map((node) => node.className), ['eligible', 'start']);
+  assert.equal(footer.children[1].textContent, 'Start round');
+  assert.equal(footer.children[1].tagName, 'BUTTON');
+
+  assert.deepEqual(byTag(root, 'input'), [], 'no text input');
+  assert.deepEqual(byTag(root, 'select'), [], 'no select, so no ordering UI');
+  assert.deepEqual(byClass(root, 'control-row').map((row) => row.getAttribute('data-control')), ['count']);
+});
+
+test('a first visit selects every value, no preset, and every control default — persisted', () => {
+  const settings = { preset: null, include: {}, controls: {} };
+  const { root } = settingsHarness({ settings });
+
+  assert.deepEqual(settings, {
+    preset: null,
+    include: { reg: ['regular', 'spelling', 'irregular'], person: ['1s', '2s'] },
+    controls: { count: 10 },
+  }, 'the usable whole-content pool is written into the persisted settings object');
+  assert.equal(byClass(root, 'chip custom')[0].hidden, false, 'Custom shows while no Preset is chosen');
+  assert.equal(byClass(root, 'eligible')[0].textContent, '26 eligible items');
+  assert.equal(byClass(root, 'start')[0].disabled, false);
+  assert.deepEqual(
+    byClass(root, 'switch').map((sw) => sw.getAttribute('aria-checked')),
+    ['true', 'true', 'true', 'true', 'true'],
+  );
+});
+
+test('each badge is what that value alone would add, and a thin value is flagged, not hidden', () => {
+  const { root } = settingsHarness();
+  const rows = valueRows(root);
+
+  assert.deepEqual(
+    [...rows].map(([value, row]) => [value, inRow(row, 'badge').textContent]),
+    [
+      ['regular', '12'],
+      ['spelling', '12'],
+      ['irregular', '2'],
+      ['1s', '14'],
+      ['2s', '12'],
+    ],
+    'the count is "if this value were on, given everything else currently selected"',
+  );
+
+  const thin = rows.get('irregular');
+  assert.equal(thin.getAttribute('aria-disabled'), 'true');
+  assert.equal(inRow(thin, 'sub').textContent, 'needs 5+ items');
+  assert.equal(thin.getAttribute('aria-disabled'), 'true', 'the row is dimmed through CSS');
+  assert.equal(inRow(rows.get('regular'), 'sub').textContent, '', 'a healthy value has no sub-line');
+  assert.equal(rows.get('regular').getAttribute('aria-disabled'), 'false');
+});
+
+test('a Preset chip copies its include map, records its id, and hides Custom', () => {
+  const settings = { preset: null, include: { reg: [], person: [] }, controls: { count: 20 } };
+  const { root } = settingsHarness({ settings });
+  const chip = byClass(root, 'presets')[0].children[0];
+
+  chip.fire('click');
+
+  assert.deepEqual(settings, {
+    preset: 'a1',
+    include: { reg: ['regular', 'spelling'] },
+    controls: { count: 20 },
+  }, 'the declaration is copied out, and the chosen control survives');
+  assert.equal(chip.getAttribute('aria-pressed'), 'true');
+  assert.equal(byClass(root, 'chip custom')[0].hidden, true);
+  assert.equal(byClass(root, 'eligible')[0].textContent, '24 eligible items');
+  assert.equal(
+    byClass(root, 'acc-head')[1].children[1].textContent,
+    '2 of 2',
+    'a Dimension the Preset does not mention is unconstrained, so the form shows it all-on',
+  );
+  assert.equal(inRow(valueRows(root).get('1s'), 'badge').textContent, '12');
+});
+
+test('a manual change — a switch, All or None — clears the Preset and recomputes the whole form', () => {
+  const settings = { preset: 'a1', include: { reg: ['regular', 'spelling'] }, controls: { count: 10 } };
+  const { root } = settingsHarness({ settings });
+  const rows = valueRows(root);
+
+  inRow(rows.get('2s'), 'switch').fire('click');
+  assert.equal(settings.preset, null, 'a manual change always means Custom');
+  assert.deepEqual(settings.include.person, ['1s']);
+  assert.equal(byClass(root, 'chip custom')[0].hidden, false);
+  assert.equal(byClass(root, 'acc-head')[1].children[1].textContent, '1 of 2');
+  assert.equal(inRow(rows.get('regular'), 'badge').textContent, '6', 'the badges were recomputed');
+  assert.equal(byClass(root, 'eligible')[0].textContent, '12 eligible items');
+
+  const [all, none] = byClass(byAttr(root, 'data-dim', 'reg')[0], 'text-btn');
+  assert.deepEqual([all.textContent, none.textContent], ['All', 'None']);
+
+  // Nothing manual keeps a Preset, All and None included — not just the switches.
+  byClass(root, 'presets')[0].children[0].fire('click');
+  assert.equal(settings.preset, 'a1');
+  all.fire('click');
+  assert.equal(settings.preset, null, 'All is a manual change too');
+  assert.deepEqual(settings.include.reg, ['regular', 'spelling', 'irregular']);
+  assert.equal(byClass(root, 'chip custom')[0].hidden, false);
+  assert.equal(byClass(root, 'eligible')[0].textContent, '26 eligible items');
+
+  none.fire('click');
+  assert.deepEqual(settings.include.reg, []);
+  assert.equal(byClass(root, 'eligible')[0].textContent, 'no items match these filters');
+  assert.equal(byClass(root, 'start')[0].disabled, true, 'None is an empty pool, and Start says so');
+
+  all.fire('click');
+  assert.deepEqual(settings.include.reg, ['regular', 'spelling', 'irregular']);
+  assert.equal(byClass(root, 'eligible')[0].textContent, '26 eligible items');
+  assert.equal(byClass(root, 'start')[0].disabled, false);
+});
+
+test('a declared control chip persists its value and clears the Preset', () => {
+  const settings = { preset: 'a1', include: { reg: ['regular', 'spelling'] }, controls: { count: 10 } };
+  const { root } = settingsHarness({ settings });
+  const chips = byClass(root, 'controls')[0].children;
+
+  assert.deepEqual(chips.map((chip) => chip.getAttribute('aria-pressed')), ['false', 'true', 'false']);
+  chips[2].fire('click');
+  assert.equal(settings.controls.count, 20);
+  assert.equal(settings.preset, null);
+  assert.deepEqual(chips.map((chip) => chip.getAttribute('aria-pressed')), ['false', 'false', 'true']);
+});
+
+test('an empty pool says exactly so and disables Start round', () => {
+  const { root, log } = settingsHarness({
+    settings: { preset: null, include: { reg: [], person: [] }, controls: {} },
+  });
+  const eligible = byClass(root, 'eligible')[0];
+  const start = byClass(root, 'start')[0];
+
+  assert.equal(eligible.textContent, 'no items match these filters');
+  assert.equal(start.disabled, true);
+  start.fire('click');
+  assert.deepEqual(log, [], 'a disabled Start round cannot enter the Game route');
+});
+
+test('Start round is the only control that enters the Game route', () => {
+  const { root, log } = settingsHarness();
+
+  byClass(root, 'presets')[0].children[0].fire('click');
+  byClass(root, 'switch')[0].fire('click');
+  byClass(root, 'acc-head')[0].fire('click');
+  byClass(root, 'controls')[0].children[0].fire('click');
+  assert.deepEqual(log, [], 'no other control leaves the settings screen');
+
+  byClass(root, 'start')[0].fire('click');
+  assert.deepEqual(log, [gameHash('verbi-presente')]);
+});
+
+test('Start round on the settings route enters the Game route through the router', () => {
+  const doc = fakeDocument();
+  const ui = createUi(doc);
+  const root = doc.createElement('div');
+  const win = fakeWindow(HUB_HASH);
+  /** @type {string[]} */
+  const log = [];
+  const settings = { preset: null, include: {}, controls: {} };
+
+  const router = createRouter({
+    window: win,
+    render: (route, host) => {
+      const game = gameById(route.id);
+      if (route.name === 'hub') {
+        log.push('hub');
+        ui.hub(root);
+        return;
+      }
+      if (route.name === 'game') {
+        log.push(`game:${route.id}`);
+        const { playRoot, teardown } = ui.gameScreen(root, game);
+        const done = game.play(playRoot, { pool: [], content: null, settings, rng: Math.random, store: null });
+        return () => {
+          done();
+          teardown();
+          log.push(`teardown game:${route.id}`);
+        };
+      }
+      log.push(`settings:${route.id}`);
+      const teardown = ui.settingsScreen(root, settingsGame, {
+        settings,
+        items: settingsItems,
+        navigate: host.navigate,
+      });
+      return () => {
+        teardown();
+        log.push(`teardown settings:${route.id}`);
+      };
+    },
+  });
+
+  router.start();
+  win.location.hash = settingsHash('verbi-presente'); // the hub card's own href
+  assert.deepEqual(router.current(), { name: 'settings', id: 'verbi-presente' });
+  assert.equal(byClass(root, 'eligible')[0].textContent, '26 eligible items');
+
+  byClass(root, 'start')[0].fire('click');
+  assert.equal(win.location.hash, gameHash('verbi-presente'), 'Start round is the only way in');
+  assert.deepEqual(router.current(), { name: 'game', id: 'verbi-presente' });
+  assert.deepEqual(log, [
+    'hub',
+    'settings:verbi-presente',
+    'teardown settings:verbi-presente',
+    'game:verbi-presente',
+  ]);
+});
+
+test('a saved settings object is completed against the declaration, and a dead Preset is dropped', () => {
+  const settings = { preset: 'gone', include: { reg: ['spelling'] }, controls: { count: 7 } };
+  const { root, teardown } = settingsHarness({ settings });
+
+  assert.deepEqual(settings, {
+    preset: null,
+    include: { reg: ['spelling'], person: ['1s', '2s'] },
+    controls: { count: 10 },
+  });
+  assert.equal(byClass(root, 'chip custom')[0].hidden, false);
+
+  teardown();
+  assert.deepEqual(root.children, [], 'leaving the screen removes it');
+});
+
+test('a Game that declares nothing still gets a usable settings screen', () => {
+  const { root } = settingsHarness({ game: noopGame, settings: {}, items: [] });
+
+  assert.deepEqual(byClass(root, 'settings')[0].children.map((node) => node.className), ['', 'settings-footer']);
+  assert.deepEqual(byClass(root, 'presets'), []);
+  assert.deepEqual(byClass(root, 'accordion'), []);
+  assert.deepEqual(byClass(root, 'control-row'), []);
+  assert.equal(byClass(root, 'eligible')[0].textContent, 'no items match these filters');
+  assert.equal(byClass(root, 'start')[0].disabled, true);
+});
+
+test('the settings screen’s documented sizes live in the one stylesheet', () => {
+  assert.match(cssBlock('.chip'), /min-height:\s*40px/);
+  assert.match(cssBlock('.acc-head'), /min-height:\s*56px/);
+  assert.match(cssBlock('.value-row'), /min-height:\s*48px/);
+  assert.match(cssBlock('.start'), /min-height:\s*52px/);
+  const footer = cssBlock('.settings-footer');
+  assert.match(footer, /position:\s*sticky/);
+  assert.match(footer, /env\(safe-area-inset-bottom\)/);
+});
+
+test('every registered Game declares the shared round-count control', () => {
+  for (const game of GAMES) {
+    const controls = game.controls ?? [];
+    const count = controls.find((control) => control.id === 'count');
+    assert.ok(count, `${game.id} declares a round-count control`);
+    assert.deepEqual(count.options, [5, 10, 20], `${game.id} offers 5, 10 and 20`);
+    assert.equal(count.default, 10, `${game.id} defaults to 10`);
+    assert.equal(typeof count.label, 'string');
+  }
 });
 
 /** @returns {Promise<boolean>} true when every case passed */

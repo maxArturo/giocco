@@ -78,12 +78,28 @@ loud error, not a silently empty Pool.
 so no Game can trap the player. Everything else on that screen is the Game's. The other host
 surface is the settings screen, rendered from the Game's `dims`, `presets` and `controls`.
 
-`js/ui.js` is the whole of that: `createUi(doc = document)` returns `hub()` — the wordmark plus
-one card per Game, each a plain anchor to that Game's settings route — and `gameScreen(root, game)`
-— the back control plus an empty `playRoot`, whose teardown removes both. It never calls `play()`:
-the route renderer mounts the Game into `playRoot` and composes the two teardowns, so `ui.js`
-imports neither the engine nor storage and a Game can never be handed host chrome. Anchors are
-used instead of handlers, so hub card and back control work as soon as the fragment changes.
+`js/ui.js` is the whole of that: `createUi(doc = document)` returns three screens.
+`hub()` draws the wordmark plus one card per Game, each a plain anchor to that Game's settings
+route. `gameScreen(root, game)` draws the back control plus an empty `playRoot`, whose teardown
+removes both; it never calls `play()`, so the route renderer mounts the Game into `playRoot` and
+composes the two teardowns and a Game can never be handed host chrome. `settingsScreen(root, game,
+{ settings, items, navigate })` draws the settings screen from the declaration: Preset chips (plus
+a `Custom` chip whenever `preset` is `null`), one accordion per Dimension with the first open,
+every value row's count-if-on badge, the declared control chips, and a sticky footer with the
+eligible count and `Start round`. It is handed the *live* settings object (a `storage.settings()`
+slice, so every write persists on the spot), the Game's Items (`itemsOf(session content)`, the
+only thing it filters over) and the router's `navigate`. Anchors are used for navigation that is
+always available (hub card, back control, so both work as soon as the fragment changes);
+`Start round` is a `<button>` because it has to be `disabled` on an empty pool.
+
+The screen builds its DOM once and mutates it through one `refresh()`: every change writes through
+the live settings object, clears `preset` (so the row shows `Custom`) and recomputes the whole
+form — each badge is `filterPool(items, { include: { …current, [dim]: [value] } })`, what that
+value would add given everything else, and a value below five is dimmed, `aria-disabled` and given
+a `needs 5+ items` sub-line. A Dimension an `include` omits (a Preset only mentions the Dimensions
+it filters) is unconstrained — the engine's own reading — so the form shows it all-on, never
+`None`. `ui.js` therefore imports the engine's pure `filterPool`/`presetSettings` and neither a
+Session nor storage.
 
 **4. Persist.** The host writes `session.store` on every mutation and never looks inside it.
 

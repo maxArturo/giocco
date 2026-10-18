@@ -37,10 +37,11 @@ Host modules that are DOM-free carry their deterministic checks in `tools/sanity
 `node:assert` cases, and a case may be `async` (`runSanity()` awaits every case). Host modules
 that touch environment globals (`localStorage`) or the network (`fetch`) take them as injectable
 defaults so Node can drive them with a fake backend — `js/ui.js` takes `document` the same way,
-and the suite's `fakeDocument()` (create/append/attrs/`textContent` only) is what lets a screen's
-*structure* be checked in Node. What a fake cannot see — layout, safe areas, focus order, hit
-targets under a thumb, offline — stays a manual browser/device check; the CSS minimum sizes are
-the one thing read out of `styles.css` by a case.
+and the suite's `fakeDocument()` (create/append/attrs/`textContent`, plus `addEventListener` and a
+`fire(type)` helper) is what lets a screen's *structure* **and its taps** be checked in Node. What
+a fake cannot see — layout, safe areas, focus order, hit targets under a thumb, offline — stays a
+manual browser/device check; the CSS minimum sizes are the one thing read out of `styles.css` by a
+case.
 
 Status: **host engine.** `index.html`, `styles.css`, `manifest.webmanifest`, `icons/`,
 `.nojekyll`, the `js/app.js` boot placeholder, `js/storage.js` (envelope, `migrate()`, per-Game
@@ -48,12 +49,12 @@ settings + store), `js/engine.js` (Pool filter, content loading, the five-proper
 injectable RNG, settings/Preset helpers), `js/registry.js` (the three permanent ids in
 display order, each importing its `js/games/<id>/index.js`), `js/router.js` (the three frozen
 hash routes, cold-load and unknown-route redirects, screen teardown) and `js/ui.js` (the hub —
-wordmark plus one card per Game linking to its settings route — and the Game route's chrome: a
-single back control to `#/` plus the empty node a Game draws into) exist. Those three Game
-modules are registration placeholders: they declare `id`, `title`, `description` and a no-op
-`play()` until their drills, declarations and `content/*.json` land. `sw.js`, the settings
-screen (US-007), `js/lib/*` and `content/*.json` do not exist yet, and nothing calls
-`createRouter()` or `createUi()` — the boot wiring is US-008's.
+wordmark plus one card per Game linking to its settings route — the settings screen, and the Game
+route's chrome: a single back control to `#/` plus the empty node a Game draws into) exist. Those
+three Game modules are registration placeholders: they declare `id`, `title`, `description`, the
+shared round-count `controls` and a no-op `play()` until their drills, content declarations and
+`content/*.json` land. `sw.js`, `js/lib/*` and `content/*.json` do not exist yet, and nothing
+calls `createRouter()` or `createUi()` — the boot wiring is US-008's.
 
 ## Shell
 
@@ -75,11 +76,24 @@ held the cold or dead URL is replaced rather than pushed. Whatever a screen's `r
 its teardown, and the router runs it before the next screen renders and on `stop()`.
 - `js/ui.js` draws the host's screens and nothing else: `createUi(doc = document)` returns `hub()`
 (wordmark + one `a.game-card` per Game, in registry order, each pointing at that Game's settings
-route) and `gameScreen()` (the back control plus the node a Game draws into). Cards and the back
-control are plain anchors, so navigation needs no handler and works before the boot script has
-run. `gameScreen()` never calls `play()`: the route renderer mounts the Game into the returned
-`playRoot` and composes the two teardowns, which is why `ui.js` imports no engine or storage.
-Chrome copy is English; a Game's own strings stay Italian.
+route), `gameScreen()` (the back control plus the node a Game draws into) and `settingsScreen()`
+(the Game's title, Preset chips + a `Custom` state chip, one accordion per Dimension with the
+first open, its control chips and a sticky footer with the eligible count and `Start round`).
+Cards and the back control are plain anchors, so navigation needs no handler and works before the
+boot script has run; `Start round` is a `<button>` (it must be `disabled` on an empty pool) and
+takes `navigate` as an injected option, which the boot wiring fills with the router's own.
+`gameScreen()` never calls `play()`: the route renderer mounts the Game into the returned
+`playRoot` and composes the two teardowns, which is why `ui.js` imports no Session and no storage
+— only the engine's pure `filterPool`/`presetSettings` helpers, because the settings screen is
+host-rendered from the Game's declaration. Chrome copy is English; a Game's own strings stay
+Italian.
+- The settings screen builds its DOM once and mutates it through a `refresh()`: every change
+writes through the live (persisted) `settings` object — clearing `preset` and setting
+`include`/`controls` — then recomputes every badge, the accordion counts, the chip states and the
+footer. A value's badge is `filterPool(items, { include: { …current, [dim]: [value] } })`, i.e.
+what it would add given everything else; below five it is dimmed, `aria-disabled` and given a
+`needs 5+ items` sub-line. A Dimension absent from `include` (a Preset mentions only the
+Dimensions it filters) is **unconstrained**, so the form shows it all-on rather than as `None`.
 
 To check the shell the way it is deployed, symlink the repo into a parent directory and serve
 that (`ln -s $PWD /tmp/serve/giocco && cd /tmp/serve && python3 -m http.server 8001`), then load
