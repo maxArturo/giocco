@@ -45,7 +45,11 @@ Host modules that are DOM-free carry their deterministic checks in `tools/sanity
 that touch environment globals (`localStorage`) or the network (`fetch`) take them as injectable
 defaults so Node can drive them with a fake backend — `js/ui.js` takes `document` the same way,
 and the suite's `fakeDocument()` (create/append/attrs/`textContent`, plus `addEventListener` and a
-`fire(type)` helper) is what lets a screen's *structure* **and its taps** be checked in Node. Boot
+`fire(type)` helper) is what lets a screen's *structure* **and its taps** be checked in Node — it
+also records `innerHTML` as the exact string it was handed, because a chart is the one thing a
+Game writes as markup. Timers take the same treatment: `withFakeTimers()` swaps
+`setTimeout`/`clearTimeout` for a controllable clock, which is how a real Game's `play()` — with
+nowhere to inject them — is walked through a whole round and its 700/1400/250 ms delays. Boot
 is covered the same way: `boot({ document, window, fetch, storage, games, serviceWorker })` in
 `js/app.js` takes every environment global as an injectable default, so a case can prove
 fetch-before-render order, the cold-load redirect and the composed Game teardown without a
@@ -81,7 +85,11 @@ chart helpers a Game's own statistics view draws with) exist, and `content/verbi
 `min(chosen count, pool.length)` distinct Items, each asked with its own answer plus its three
 authored distractors in a shuffled four-option set, handed to `roundLoop()` in `choice` mode.
 Its named exports (`weightedQueue`, `questionFor`, `itemWeight`, `masteryOf`, `epochDay`,
-`shuffle`, `roundCount`) are the draw policy the other Games import rather than copy.
+`shuffle`, `roundCount`) are the draw policy the other Games import rather than copy, and since
+US-017 they include the progress core (`recordAttempt`, `statsFor`, `masteredOf`, the bounded
+history and the `statisticsView()` the Game draws with): the Game records `{ a, c, ema, last }`
+per Item, the points, 90 daily buckets and 26 weekly Tag snapshots in **its own** store, and its
+round summary carries a Game-owned **Statistics** action beside Play again and Done.
 `js/games/verbi-presente-rivela/index.js` plays a real reveal round (US-014): it imports that
 policy (`weightedQueue`, `masteryOf`, `roundCount`), draws the same weighted, without-replacement
 queue and hands `roundLoop()` `mode: 'reveal'` with `{ prompt, answer }` questions — one prompt,
@@ -182,6 +190,20 @@ to the draw. Option order is drawn once per question with `session.rng`, never r
 the question is on screen. `roundLoop()` needs a `document` and a Game's `play(root, session)` has
 no place to inject one, so `tools/sanity.mjs`'s `withFakeDocument()` installs the fake as the
 global document for the duration of such a case.
+- The Game-side progress core lives in `js/games/verbi-presente/index.js` and is *policy*, not
+host state: `recordAttempt(store, item, correct, { items, now })` writes one attempt into the
+store it is handed (`{ items: { <id>: { a, c, ema, last } }, points, days: [{ d, a, c, p }],
+weeks: [{ w, tags }] }`), and `statsFor(store, items, now)` returns the four sections' numbers.
+Both take the store as an argument, so `verbi-presente-rivela` and `nomi-plurale` reuse the same
+formulas over their own slices without sharing a number; `items` is the Game's *whole current
+corpus* (`session.content`), never the filtered Pool, so a filtered round cannot rewrite the views.
+The store proxy persists every write on the spot, so an attempt made mid-round survives the host
+back control. `statisticsView(doc, { store, items, onSummary })` is the view: it builds the four
+sections once and refreshes them by mutation (the `js/ui.js` rule), it is built hidden and swapped
+with the round's own node in place — never a route, never a link — and its only action is the
+Game-owned **Summary** that returns to the same round summary. A chart is inserted with
+`innerHTML` (the one place a Game does so, because `js/lib/charts.js` returns a string) and always
+sits next to a written summary; empty states are strings, never `NaN`.
 - `js/lib/charts.js` is the Game-side statistics decoration and imports nothing: `sparkline(vals,
 { w, h })` returns an inline-SVG string for two or more values and `''` for fewer, and `bars(vals,
 { w, h, gap, min, max })` returns one `h`-tall clamped rect per value (defaults 6px tall, 8px

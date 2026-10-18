@@ -40,12 +40,24 @@ import { createUi } from '../js/ui.js';
 import { CORRECT_DELAY, MAX_MISSES, TAP_GUARD, WRONG_DELAY, roundLoop } from '../js/lib/roundLoop.js';
 import { bars, sparkline } from '../js/lib/charts.js';
 import verbiPresenteGame, {
+  ATTEMPTS_WINDOW,
+  DAILY_BUCKETS,
+  MASTERED_AT,
+  MASTERED_ATTEMPTS,
+  POINTS_CORRECT,
+  POINTS_RETURN,
+  POINTS_WINDOW,
+  WEEKLY_SNAPSHOTS,
   epochDay,
   itemWeight,
+  masteredOf,
   masteryOf,
   questionFor,
+  recordAttempt,
   roundCount,
   shuffle,
+  statisticsView,
+  statsFor,
   weightedQueue,
 } from '../js/games/verbi-presente/index.js';
 import verbiPresenteRivelaGame, {
@@ -922,6 +934,17 @@ function fakeDocument() {
         node._text = String(value);
         node.children.length = 0;
       },
+      // A chart is the one thing a Game writes as a string (`js/lib/charts.js`), and the fake does
+      // not parse markup: it records what was assigned, so a case asserts exactly the string a
+      // chart helper returned, and `assertSilent()`/`assertWellFormedSvg()` can read it.
+      get innerHTML() {
+        return node._html ?? '';
+      },
+      set innerHTML(value) {
+        node._html = String(value);
+        node._text = '';
+        node.children.length = 0;
+      },
       // Attribute reflection only — a real `a.href` would also resolve to an absolute URL.
       get href() {
         return Object.hasOwn(node.attributes, 'href') ? node.attributes.href : '';
@@ -982,6 +1005,28 @@ function withFakeDocument(fn) {
   } finally {
     if (previous === undefined) delete globalThis.document;
     else globalThis.document = previous;
+  }
+}
+
+/**
+ * Run `fn` with `setTimeout`/`clearTimeout` replaced by a controllable clock: a real Game's
+ * `play()` reaches `roundLoop()` with no injections, so this is how a case walks a whole round —
+ * and its 700/1400/250 ms delays — by ticking the clock itself. Only the timers are faked: `now`
+ * stays the real clock, so a record written during the round is stamped with today.
+ * @template T @param {(clock: ReturnType<typeof fakeClock>) => T} fn
+ * @returns {T}
+ */
+function withFakeTimers(fn) {
+  const clock = fakeClock();
+  const previousSetTimeout = globalThis.setTimeout;
+  const previousClearTimeout = globalThis.clearTimeout;
+  globalThis.setTimeout = clock.setTimeout;
+  globalThis.clearTimeout = clock.clearTimeout;
+  try {
+    return fn(clock);
+  } finally {
+    globalThis.setTimeout = previousSetTimeout;
+    globalThis.clearTimeout = previousClearTimeout;
   }
 }
 
@@ -2537,6 +2582,368 @@ test('the round length comes from the control, and an empty pool draws no questi
       'no question was ever asked',
     );
     emptyTeardown();
+  });
+});
+
+// ---------------------------- the verb choice Game's progress and statistics (US-017)
+
+/**
+ * A timestamp inside local epoch-day `day`: the inverse of `epochDay()` for a chosen day, so a
+ * case can place attempts on the calendar instead of only "today". Noon-ish, then nudged, because
+ * the offset `epochDay()` uses is the offset at that instant.
+ * @param {number} day
+ */
+function atDay(day) {
+  let ms = day * 86_400_000 + 12 * 3_600_000;
+  while (epochDay(ms) < day) ms += 3_600_000;
+  while (epochDay(ms) > day) ms -= 3_600_000;
+  return ms;
+}
+
+/** An Item carrying exactly these Tags, for the Tag rows and the weakest-first order. */
+const taggedVerb = (/** @type {string} */ id, /** @type {string[]} */ tags) => ({ ...verbItem(id), tags });
+
+test('an attempt writes the per-Item counters, the EMA and the points it earned', () => {
+  const today = epochDay();
+  const item = verbItem('cercare');
+  const store = {};
+
+  // An unseen Item: a=0, c=0, ema=0, elapsed 0 — and an unseen Item earns no recency bonus.
+  assert.equal(recordAttempt(store, item, true, { now: atDay(today) }), POINTS_CORRECT);
+  assert.deepEqual(store.items[item.id], { a: 1, c: 1, ema: 0.25, last: today });
+  assert.equal(store.points, POINTS_CORRECT);
+  assert.equal(masteryOf(store, item.id, today), 0.25, 'mastery is the EMA on the day it was written');
+  assert.equal(masteredOf(store, item.id, today), false, 'one answer is not knowledge');
+
+  // The same Item on the same local day: no elapsed days, so a wrong answer earns nothing.
+  assert.equal(recordAttempt(store, item, false, { now: atDay(today) }), 0);
+  // The EMA is `0.25 * outcome + 0.75 * previous`, the documented recency weight.
+  assert.equal(store.items[item.id].ema, 0.75 * 0.25);
+  assert.equal(store.items[item.id].a, 2);
+  assert.equal(store.items[item.id].c, 1);
+
+  // Elapsed days come from the previous `last`, before it is overwritten…
+  assert.equal(recordAttempt(store, item, true, { now: atDay(today + 3) }), POINTS_CORRECT, 'three days is not a week');
+  assert.equal(store.items[item.id].last, today + 3);
+  // …and the +5 is for coming back after a week, independent of the answer being right.
+  assert.equal(
+    recordAttempt(store, item, false, { now: atDay(today + 10) }),
+    POINTS_RETURN,
+    'the recency bonus does not need a correct answer',
+  );
+  assert.equal(store.items[item.id].c, 2, 'a wrong answer never counts as correct');
+  assert.equal(store.points, 2 * POINTS_CORRECT + POINTS_RETURN);
+
+  // Mastery decays by half a fortnight, and mastered needs both floors: the mastery and the
+  // attempts (the floor is what stops one lucky answer looking like knowledge).
+  const aged = { items: { known: { a: MASTERED_ATTEMPTS, c: MASTERED_ATTEMPTS, ema: 1, last: today - 14 } } };
+  assert.equal(masteryOf(aged, 'known', today), 0.5);
+  assert.equal(masteredOf(aged, 'known', today), false, 'the mastery has faded below the floor');
+  const fresh = { items: { known: { a: MASTERED_ATTEMPTS, c: MASTERED_ATTEMPTS, ema: MASTERED_AT, last: today } } };
+  assert.equal(masteredOf(fresh, 'known', today), true);
+  const lucky = { items: { known: { a: MASTERED_ATTEMPTS - 1, c: 2, ema: 1, last: today } } };
+  assert.equal(masteredOf(lucky, 'known', today), false, 'too few attempts, however good the EMA');
+
+  // A Session built without a store is still a round: the points are computed, nothing is written.
+  assert.equal(recordAttempt(null, item, true, { now: atDay(today) }), POINTS_CORRECT);
+});
+
+test('the daily buckets and the weekly Tag snapshots stay bounded', () => {
+  const today = epochDay();
+  const item = taggedVerb('cercare', ['reg:regular']);
+  const store = {};
+
+  // One attempt a local day for 200 days: an unbounded store would grow with practice itself.
+  for (let day = today - 199; day <= today; day += 1) {
+    recordAttempt(store, item, true, { now: atDay(day), items: [item] });
+  }
+  assert.equal(store.days.length, DAILY_BUCKETS, 'only the last 90 daily buckets are kept');
+  assert.equal(store.days[0].d, today - DAILY_BUCKETS + 1, 'the oldest days are the ones dropped');
+  assert.equal(store.days[DAILY_BUCKETS - 1].d, today);
+  assert.deepEqual(
+    store.days.map((bucket) => bucket.d),
+    [...store.days.map((bucket) => bucket.d)].sort((left, right) => left - right),
+    'the buckets stay ascending by local day',
+  );
+  assert.equal(store.points, 200 * POINTS_CORRECT, 'the total is not bounded, only the history is');
+
+  // A local week is one snapshot, not one snapshot per attempt: 200 days is ~29 weeks.
+  assert.equal(store.weeks.length, WEEKLY_SNAPSHOTS, 'at most 26 weekly snapshots are kept');
+  assert.equal(new Set(store.weeks.map((week) => week.w)).size, WEEKLY_SNAPSHOTS, 'one snapshot per local week');
+  assert.ok(
+    store.weeks.every((week, index) => index === 0 || week.w > store.weeks[index - 1].w),
+    'the weeks stay ascending too',
+  );
+  const newest = store.weeks[WEEKLY_SNAPSHOTS - 1];
+  assert.equal(newest.w, Math.floor(today / 7), 'the newest week is this one');
+  assert.ok(newest.tags['reg:regular'] > 0.999, 'a snapshot holds each Tag’s current Skill');
+
+  // Two attempts inside one local week update that week’s snapshot instead of adding another,
+  // and a day arriving out of order still lands in order.
+  const oneWeek = {};
+  recordAttempt(oneWeek, item, true, { now: atDay(today), items: [item] });
+  recordAttempt(oneWeek, item, false, { now: atDay(today - 1), items: [item] });
+  assert.equal(oneWeek.weeks.length, 1);
+  assert.deepEqual(Object.keys(oneWeek.weeks[0].tags), ['reg:regular']);
+  assert.deepEqual(oneWeek.days.map((bucket) => bucket.d), [today - 1, today]);
+  assert.deepEqual(oneWeek.days.map((bucket) => bucket.a), [1, 1]);
+});
+
+test('a cold statistics view reads the documented empty states, and nothing shows NaN', () => {
+  const doc = fakeDocument();
+  const cold = statisticsView(doc, { store: null, items: [] });
+  assert.equal(cold.section.hidden, true, 'the view starts hidden — the round owns the screen');
+  assert.equal(cold.section.getAttribute('aria-labelledby'), 'stats-title');
+  // A cumulative line always has 30 points to draw, so a cold store is a flat line at zero; the
+  // daily line has nothing to draw at all, and its written note carries that case on its own.
+  const coldCharts = byClass(cold.section, 'chart');
+  assertWellFormedSvg(coldCharts[0].innerHTML);
+  assertSilent(coldCharts[0].innerHTML);
+  assert.equal(new Set(pointsOf(coldCharts[0].innerHTML).map(([, y]) => y)).size, 1, 'a cold store is a flat line');
+  assert.equal(coldCharts[1].innerHTML, '', 'no day with attempts means no daily line');
+  assert.deepEqual(byTag(cold.section, 'h2').map((head) => head.textContent), [
+    'Points',
+    'Accuracy',
+    'Skills by Tag',
+    'Weakest items',
+  ]);
+  assert.deepEqual(byClass(cold.section, 'stat').map((node) => node.textContent), [
+    '0 points',
+    'No attempts in the last 7 days',
+  ]);
+  assert.equal(byClass(cold.section, 'delta')[0].hidden, true, 'no accuracy means no delta');
+  assert.equal(byClass(cold.section, 'delta')[0].textContent, '');
+  assert.deepEqual(
+    byClass(cold.section, 'stat-rows')[0].children.map((node) => node.textContent),
+    ['No tagged attempts yet'],
+  );
+  // Every chart has its written summary next to it, and a cold store still says something true.
+  const coldNotes = byClass(cold.section, 'note');
+  assert.equal(coldNotes[0].textContent, `0 → 0 pt over the last ${POINTS_WINDOW} local days`);
+  assert.equal(coldNotes[1].textContent, `No attempts in the last ${POINTS_WINDOW} local days to chart`);
+  assert.equal(coldNotes[2].textContent, 'No tagged attempts yet');
+  assert.deepEqual(byTag(cold.section, 'li').map((node) => node.textContent), ['No attempts yet']);
+  assert.equal(byClass(cold.section, 'actions').length, 1);
+  assert.equal(byClass(cold.section, 'actions')[0].children[0].textContent, 'Summary');
+  assert.equal(byTag(cold.section, 'a').length, 0, 'the view navigates nowhere');
+
+  // The numbers behind it are zeros and empty lists, never NaN.
+  const stats = statsFor(null, []);
+  assert.equal(stats.points, 0);
+  assert.equal(stats.cumulative.length, POINTS_WINDOW);
+  assert.ok(stats.cumulative.every((value) => value === 0));
+  assert.deepEqual(stats.accuracy, { attempts: 0, correct: 0, pct: null, previousPct: null, delta: null });
+  assert.deepEqual(stats.daily, []);
+  assert.deepEqual(stats.tags, []);
+  assert.deepEqual(stats.weakest, []);
+
+  // A store hand-edited into nonsense still reads as numbers, never as NaN.
+  const junk = statsFor({ items: { x: { a: 'no', ema: null, last: undefined } }, days: 'nope', weeks: 7, points: 'x' }, []);
+  assert.equal(junk.points, 0);
+  assert.ok(junk.cumulative.every(Number.isFinite), 'no arithmetic leaks into the chart');
+  const junkView = statisticsView(fakeDocument(), {
+    store: { days: [null, 'x', { d: 'x' }, { d: 1, a: 'x', c: null }] },
+    items: [],
+  });
+  assert.equal(junkView.section.hidden, true);
+  assert.ok(byClass(junkView.section, 'stat').every((node) => !/NaN|undefined/.test(node.textContent)));
+  assert.ok(byClass(junkView.section, 'chart').every((chart) => !/NaN|undefined/.test(chart.innerHTML)));
+});
+
+test('the statistics view’s documented sizes live in the one stylesheet', () => {
+  assert.match(cssBlock('.stat-row'), /min-height:\s*48px/, 'a Tag row is 48px');
+  assert.match(cssBlock('.stat-row .bar-cell'), /flex:\s*1/, 'the bar takes the row’s free width');
+  assert.match(cssBlock('.stats'), /height:\s*100%/, 'the view fills the node the Game was handed');
+  assert.match(cssBlock('.stats'), /overflow-y:\s*auto/, 'and is the one Game view that scrolls');
+  assert.match(cssBlock('.stats .actions'), /grid-template-columns:\s*1fr/, 'Summary is one full-width row');
+});
+
+test('the statistics are the store’s own numbers, weakest Tag first', () => {
+  const today = epochDay();
+  const items = [
+    taggedVerb('a', ['reg:regular', 'person:1s']),
+    taggedVerb('b', ['reg:irregular', 'person:1s']),
+    taggedVerb('c', ['reg:regular', 'person:2s']),
+  ];
+  const store = {};
+  // Two right answers on `a` today, two wrong ones on `b`, and `c` never asked.
+  recordAttempt(store, items[0], true, { now: atDay(today), items });
+  recordAttempt(store, items[0], true, { now: atDay(today), items });
+  recordAttempt(store, items[1], false, { now: atDay(today), items });
+  recordAttempt(store, items[1], false, { now: atDay(today), items });
+  const masteryOfA = masteryOf(store, 'a', today);
+
+  const stats = statsFor(store, items, atDay(today));
+  // Skill is the mean Mastery of *every* current Item carrying the Tag — so `reg:regular` averages
+  // in the untouched `c` at mastery 0 — and `person:2s` (only `c`) has no attempt, so no row.
+  assert.deepEqual(
+    stats.tags.map((row) => row.tag),
+    ['reg:irregular', 'person:1s', 'reg:regular'],
+    'weakest first, ties broken by Tag value ascending',
+  );
+  const [irregular, single, regular] = stats.tags;
+  assert.equal(irregular.pct, 0, 'two wrong answers are no Skill at all');
+  assert.equal(irregular.a, 2, 'n is the attempts the Tag’s Items carry');
+  assert.equal(single.a, 4, 'both attempted Items carry person:1s');
+  assert.equal(single.skill, masteryOfA / 2);
+  assert.equal(regular.a, 2, 'the untouched Item of the two contributes attempts, not just Skill');
+  assert.equal(regular.skill, masteryOfA / 2);
+  assert.deepEqual(stats.weakest.map((item) => item.id), ['b', 'a'], 'the weakest attempted Items, text only');
+  assert.equal(stats.points, 2 * POINTS_CORRECT);
+  assert.equal(stats.accuracy.pct, 50, 'four attempts, two of them right');
+  assert.equal(stats.accuracy.delta, null, 'there is no week before this one to compare with');
+  assert.deepEqual(stats.daily, [50]);
+  assert.equal(stats.cumulative[POINTS_WINDOW - 1], stats.points, 'the line ends at the total');
+
+  // The view renders them: one row per attempted Tag, weakest first, with its bar, % and n=.
+  const view = statisticsView(fakeDocument(), { store, items });
+  const rows = byClass(view.section, 'stat-rows')[0].children;
+  assert.deepEqual(rows.map((row) => row.children[0].textContent), ['reg:irregular', 'person:1s', 'reg:regular']);
+  const expected = `${Math.round((masteryOfA / 2) * 100)}%`;
+  assert.deepEqual(rows.map((row) => row.children[2].textContent), ['0%', expected, expected]);
+  assert.deepEqual(rows.map((row) => row.children[3].textContent), ['n=2', 'n=4', 'n=2']);
+  const barsRows = rows.map((row) => row.children[1].innerHTML);
+  for (const bar of barsRows) {
+    assertWellFormedSvg(bar);
+    assertSilent(bar);
+    assert.match(bar, /height="6"/, 'the row\u2019s bar is the documented 6px');
+  }
+  assert.deepEqual(rectsOf(barsRows[0]).map((rect) => rect.width), ['0.0'], 'a 0% row draws an empty bar');
+  assert.deepEqual(byTag(view.section, 'li').map((node) => node.textContent), [
+    'b · io · presente · 0%',
+    `a · io · presente · ${Math.round(masteryOfA * 100)}%`,
+  ]);
+
+  // An Item the store knows but the current content no longer carries keeps its stored data and
+  // stays out of the Tag and weakest-Item views — while its points are still the Game’s.
+  const removed = {};
+  recordAttempt(removed, taggedVerb('gone', ['reg:regular']), true, { now: atDay(today), items });
+  const after = statsFor(removed, items, atDay(today));
+  assert.ok(removed.items.gone, 'the removed Item keeps its stored entry');
+  assert.deepEqual(after.weakest, [], 'a removed Item is never a weakest Item');
+  assert.deepEqual(after.tags, [], 'and it carries no Tag Skill');
+  assert.equal(after.points, POINTS_CORRECT, 'its points remain in the total');
+
+  // Two local days with attempts are a daily line, one point per day with attempts...
+  const twoDays = {};
+  recordAttempt(twoDays, items[0], true, { now: atDay(today - 1), items });
+  recordAttempt(twoDays, items[0], false, { now: atDay(today), items });
+  const daily = byClass(statisticsView(fakeDocument(), { store: twoDays, items }).section, 'chart')[1].innerHTML;
+  assertWellFormedSvg(daily);
+  assertSilent(daily);
+  assert.deepEqual(pointsOf(daily).map(([x]) => x), [0, 300], 'two points, across the width');
+
+  // ...and the delta is in percentage points against the week before, drawn as the doc draws it.
+  const deltaOf = (/** @type {boolean} */ earlierRight, /** @type {boolean} */ nowRight) => {
+    const two = {};
+    recordAttempt(two, items[0], earlierRight, { now: atDay(today - ATTEMPTS_WINDOW - 1), items });
+    recordAttempt(two, items[0], nowRight, { now: atDay(today), items });
+    return byClass(statisticsView(fakeDocument(), { store: two, items }).section, 'delta')[0];
+  };
+  assert.equal(deltaOf(true, true).textContent, '·0');
+  assert.equal(deltaOf(false, true).textContent, '▲100');
+  assert.equal(deltaOf(true, false).textContent, '▼100');
+  assert.equal(deltaOf(true, false).hidden, false);
+});
+
+test('the verb Game writes the attempt the loop judged into its own store', () => {
+  const pool = verbItems.slice(0, 3);
+  const store = {};
+
+  withFakeDocument((doc) => {
+    const root = doc.createElement('div');
+    const teardown = verbiPresenteGame.play(root, verbSession(pool, 5, { store }));
+    const round = byClass(root, 'round')[0];
+    const asked = pool.find((entry) => entry.prompt === round.children[1].textContent);
+    assert.ok(asked, 'the question is one of the pool’s own Items');
+    const options = nodesOf(round).filter((node) => node.tagName === 'BUTTON' && node.className.startsWith('opt'));
+    options[options.map((button) => button.textContent).indexOf(asked.answer)].fire('click');
+
+    // The Game judges nothing itself: the loop reads the answer off the option rows, and this
+    // Game's own `onAnswer` writes the attempt it hands over.
+    assert.equal(byClass(round, 'status')[0].textContent, 'corretto');
+    assert.deepEqual(store.items[asked.id], { a: 1, c: 1, ema: 0.25, last: epochDay() });
+    assert.equal(store.points, POINTS_CORRECT);
+    assert.deepEqual(store.days.map((bucket) => [bucket.d, bucket.a, bucket.c, bucket.p]), [
+      [epochDay(), 1, 1, POINTS_CORRECT],
+    ]);
+    assert.equal(store.weeks.length, 1, 'and this week’s Tag snapshot');
+
+    teardown();
+    assert.equal(root.children.length, 0);
+  });
+});
+
+test('the summary’s Statistics action opens the Game’s own view, and Summary returns to it', () => {
+  const pool = verbItems.slice(0, 2);
+  const store = {};
+
+  withFakeDocument((doc) => {
+    withFakeTimers((clock) => {
+      const root = doc.createElement('div');
+      const teardown = verbiPresenteGame.play(root, verbSession(pool, 1, { store }));
+      const round = byClass(root, 'round')[0];
+      const stats = byClass(root, 'stats')[0];
+      assert.ok(stats, 'the Game draws its own statistics view');
+      assert.equal(stats.hidden, true, 'and keeps it out of the round until it is asked for');
+      assert.equal(round.hidden, false);
+
+      // One right answer, then the loop’s own 700 ms advance to the summary.
+      const options = nodesOf(round).filter((node) => node.tagName === 'BUTTON' && node.className.startsWith('opt'));
+      const asked = pool.find((entry) => entry.prompt === round.children[1].textContent);
+      options[options.map((button) => button.textContent).indexOf(asked.answer)].fire('click');
+      clock.tick(CORRECT_DELAY);
+      const summary = byClass(round, 'summary')[0];
+      assert.equal(round.getAttribute('data-state'), 'summary');
+      assert.equal(byClass(round, 'score')[0].textContent, '1/1');
+      assert.deepEqual(
+        nodesOf(summary).filter((node) => node.tagName === 'BUTTON').map((button) => button.textContent),
+        ['Play again', 'Statistics'],
+        'the Game’s own action sits beside Play again, before the host’s Done',
+      );
+      assert.equal(nodesOf(summary).filter((node) => node.tagName === 'A')[0].textContent, 'Done');
+
+      // Statistics is not a route and not a link: it swaps the Game’s two views in place.
+      nodesOf(summary).filter((node) => node.textContent === 'Statistics')[0].fire('click');
+      assert.equal(round.hidden, true);
+      assert.equal(stats.hidden, false);
+      assert.equal(byTag(stats, 'a').length, 0, 'the view carries no navigation at all');
+      assert.equal(byClass(stats, 'back').length, 0, 'the host still owns the only quit control');
+      assert.equal(byClass(stats, 'stat')[0].textContent, `${POINTS_CORRECT} pt`, 'refreshed from the store the round just wrote');
+      assert.equal(byClass(stats, 'stat')[1].textContent, '100%', 'one right answer is 100% this week');
+      assert.deepEqual(byTag(stats, 'h2').map((head) => head.textContent), [
+        'Points',
+        'Accuracy',
+        'Skills by Tag',
+        'Weakest items',
+      ]);
+
+      // The cumulative line is a chart; one day with attempts is not a line, so the written note
+      // carries that case on its own.
+      const charts = byClass(stats, 'chart');
+      assertWellFormedSvg(charts[0].innerHTML);
+      assertSilent(charts[0].innerHTML);
+      assert.equal(charts[1].innerHTML, '');
+      assert.match(byClass(stats, 'note')[1].textContent, /^1 day with attempts/);
+
+      // Summary returns to the very same round summary: same score, same queue, no navigation.
+      nodesOf(stats)
+        .filter((node) => node.tagName === 'BUTTON' && node.textContent === 'Summary')[0]
+        .fire('click');
+      assert.equal(stats.hidden, true);
+      assert.equal(round.hidden, false);
+      assert.equal(round.getAttribute('data-state'), 'summary');
+      assert.equal(byClass(round, 'score')[0].textContent, '1/1');
+
+      // Play again still samples a fresh queue in place, and the host back control still runs the
+      // teardown that empties the node the Game was handed.
+      nodesOf(summary).filter((node) => node.textContent === 'Play again')[0].fire('click');
+      assert.equal(round.getAttribute('data-state'), 'ask');
+      assert.equal(round.children[0].children[1].textContent, '1/1');
+      assert.equal(store.items[asked.id].a, 1, 'a new queue records nothing until it is answered');
+      teardown();
+      assert.equal(root.children.length, 0);
+    });
   });
 });
 

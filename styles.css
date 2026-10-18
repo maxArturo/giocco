@@ -625,11 +625,23 @@ button {
   grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
 }
 
+/*
+ * A Game's own statistics view: the shared primitives a Game draws the four documented sections
+ * with. It is a sibling of `#round` inside the node the Game was handed, so it fills that node the
+ * same way and is the one Game view that scrolls (a round never does). Charts come from
+ * `js/lib/charts.js`: `.spark` takes its height here, `.bars` carries its own as an attribute.
+ */
 .stats {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  height: 100%;
   overflow-y: auto;
+}
+
+.stats h1 {
+  margin: 0;
+  font-size: 1.25rem;
 }
 
 .stats h2 {
@@ -639,10 +651,44 @@ button {
   font-weight: 600;
 }
 
+/* A section's headline number, the delta beside it, and the text summary under every chart. */
+.stats .stat {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.stats .delta {
+  margin-left: 8px;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.stats .note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.stats .stat-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.stats .items {
+  margin: 0;
+  padding-left: 1.2em;
+  color: var(--muted);
+}
+
+/* The Game's own Summary action: one full-width text row under the sections, never a link. */
+.stats .actions {
+  grid-template-columns: 1fr;
+}
+
 /*
  * The two `js/lib/charts.js` helpers, both inline SVG a Game appends into its own view. `.spark`
- * takes its height here; `.bars` carries its own as an attribute (one rect per value) and only
- * needs to fill the column's width, so a bar keeps its 6px height whatever the width.
+ * takes its height here; `.bars` carries its own as an attribute (one rect per value, 6px in a Tag
+ * row) and only needs to fill the column's width, so a bar keeps its height whatever the width.
  */
 .spark {
   display: block;
@@ -664,18 +710,16 @@ button {
   min-height: 48px;
 }
 
-.stat-row .track {
-  flex: 1;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--track);
+.stat-row .label {
+  min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.stat-row .track i {
-  display: block;
-  height: 100%;
-  background: var(--accent);
+.stat-row .bar-cell {
+  flex: 1;
+  min-width: 0;
 }
 
 .stat-row .pct,
