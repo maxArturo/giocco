@@ -838,5 +838,845 @@
     "answer": "costruiscono",
     "distractors": ["costruisce", "costruiamo", "costruite"],
     "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:3p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-abitare-1s",
+    "prompt": "abitare · io · presente",
+    "answer": "abito",
+    "distractors": ["abiti", "abita", "abitano"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:regular", "person:1s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-abitare-2s",
+    "prompt": "abitare · tu · presente",
+    "answer": "abiti",
+    "distractors": ["abito", "abita", "abitate"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:regular", "person:2s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-abitare-3s",
+    "prompt": "abitare · lui/lei · presente",
+    "answer": "abita",
+    "distractors": ["abito", "abiti", "abitano"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:regular", "person:3s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-abitare-1p",
+    "prompt": "abitare · noi · presente",
+    "answer": "abitiamo",
+    "distractors": ["abitate", "abitano", "abita"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:regular", "person:1p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-abitare-2p",
+    "prompt": "abitare · voi · presente",
+    "answer": "abitate",
+    "distractors": ["abitiamo", "abitano", "abiti"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:regular", "person:2p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-abitare-3p",
+    "prompt": "abitare · loro · presente",
+    "answer": "abitano",
+    "distractors": ["abita", "abitiamo", "abitate"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:regular", "person:3p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-lavorare-1s",
+    "prompt": "lavorare · io · presente",
+    "answer": "lavoro",
+    "distractors": ["lavori", "lavora", "lavorano"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:regular", "person:1s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-lavorare-2s",
+    "prompt": "lavorare · tu · presente",
+    "answer": "lavori",
+    "distractors": ["lavoro", "lavora", "lavorate"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:regular", "person:2s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-lavorare-3s",
+    "prompt": "lavorare · lui/lei · presente",
+    "answer": "lavora",
+    "distractors": ["lavoro", "lavori", "lavorano"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:regular", "person:3s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-lavorare-1p",
+    "prompt": "lavorare · noi · presente",
+    "answer": "lavoriamo",
+    "distractors": ["lavorate", "lavorano", "lavora"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:regular", "person:1p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-lavorare-2p",
+    "prompt": "lavorare · voi · presente",
+    "answer": "lavorate",
+    "distractors": ["lavoriamo", "lavorano", "lavori"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:regular", "person:2p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-lavorare-3p",
+    "prompt": "lavorare · loro · presente",
+    "answer": "lavorano",
+    "distractors": ["lavora", "lavoriamo", "lavorate"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:regular", "person:3p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-studiare-1s",
+    "prompt": "studiare · io · presente",
+    "answer": "studio",
+    "distractors": ["studi", "studia", "studiano"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:spelling", "person:1s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-studiare-2s",
+    "prompt": "studiare · tu · presente",
+    "answer": "studi",
+    "distractors": ["studii", "studia", "studiate"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:spelling", "person:2s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-studiare-3s",
+    "prompt": "studiare · lui/lei · presente",
+    "answer": "studia",
+    "distractors": ["studio", "studi", "studiano"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:spelling", "person:3s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-studiare-1p",
+    "prompt": "studiare · noi · presente",
+    "answer": "studiamo",
+    "distractors": ["studiate", "studiano", "studia"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:spelling", "person:1p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-studiare-2p",
+    "prompt": "studiare · voi · presente",
+    "answer": "studiate",
+    "distractors": ["studiamo", "studiano", "studi"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:spelling", "person:2p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-studiare-3p",
+    "prompt": "studiare · loro · presente",
+    "answer": "studiano",
+    "distractors": ["studia", "studiamo", "studiate"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:spelling", "person:3p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-stare-1s",
+    "prompt": "stare · io · presente",
+    "answer": "sto",
+    "distractors": ["stai", "sta", "stanno"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:irregular", "person:1s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-stare-2s",
+    "prompt": "stare · tu · presente",
+    "answer": "stai",
+    "distractors": ["sto", "sta", "state"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:irregular", "person:2s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-stare-3s",
+    "prompt": "stare · lui/lei · presente",
+    "answer": "sta",
+    "distractors": ["sto", "stai", "stanno"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:irregular", "person:3s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-stare-1p",
+    "prompt": "stare · noi · presente",
+    "answer": "stiamo",
+    "distractors": ["state", "stanno", "sta"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:irregular", "person:1p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-stare-2p",
+    "prompt": "stare · voi · presente",
+    "answer": "state",
+    "distractors": ["stiamo", "stanno", "stai"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:irregular", "person:2p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-stare-3p",
+    "prompt": "stare · loro · presente",
+    "answer": "stanno",
+    "distractors": ["sta", "stiamo", "state"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:irregular", "person:3p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-alzarsi-1s",
+    "prompt": "alzarsi · io · presente",
+    "answer": "mi alzo",
+    "distractors": ["ti alzi", "si alza", "si alzano"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:regular", "person:1s", "refl:yes", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-alzarsi-2s",
+    "prompt": "alzarsi · tu · presente",
+    "answer": "ti alzi",
+    "distractors": ["mi alzo", "si alza", "vi alzate"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:regular", "person:2s", "refl:yes", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-alzarsi-3s",
+    "prompt": "alzarsi · lui/lei · presente",
+    "answer": "si alza",
+    "distractors": ["mi alzo", "ti alzi", "si alzano"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:regular", "person:3s", "refl:yes", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-alzarsi-1p",
+    "prompt": "alzarsi · noi · presente",
+    "answer": "ci alziamo",
+    "distractors": ["vi alzate", "si alzano", "si alza"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:regular", "person:1p", "refl:yes", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-alzarsi-2p",
+    "prompt": "alzarsi · voi · presente",
+    "answer": "vi alzate",
+    "distractors": ["ci alziamo", "si alzano", "ti alzi"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:regular", "person:2p", "refl:yes", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-alzarsi-3p",
+    "prompt": "alzarsi · loro · presente",
+    "answer": "si alzano",
+    "distractors": ["si alza", "ci alziamo", "vi alzate"],
+    "tags": ["mood:ind", "tense:pres", "class:-are", "reg:regular", "person:3p", "refl:yes", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-mettere-1s",
+    "prompt": "mettere · io · presente",
+    "answer": "metto",
+    "distractors": ["metti", "mette", "mettono"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:1s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-mettere-2s",
+    "prompt": "mettere · tu · presente",
+    "answer": "metti",
+    "distractors": ["metto", "mette", "mettete"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:2s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-mettere-3s",
+    "prompt": "mettere · lui/lei · presente",
+    "answer": "mette",
+    "distractors": ["metto", "metti", "mettono"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:3s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-mettere-1p",
+    "prompt": "mettere · noi · presente",
+    "answer": "mettiamo",
+    "distractors": ["mettete", "mettono", "mette"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:1p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-mettere-2p",
+    "prompt": "mettere · voi · presente",
+    "answer": "mettete",
+    "distractors": ["mettiamo", "mettono", "metti"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:2p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-mettere-3p",
+    "prompt": "mettere · loro · presente",
+    "answer": "mettono",
+    "distractors": ["mette", "mettiamo", "mettete"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:3p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-scrivere-1s",
+    "prompt": "scrivere · io · presente",
+    "answer": "scrivo",
+    "distractors": ["scrivi", "scrive", "scrivono"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:1s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-scrivere-2s",
+    "prompt": "scrivere · tu · presente",
+    "answer": "scrivi",
+    "distractors": ["scrivo", "scrive", "scrivete"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:2s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-scrivere-3s",
+    "prompt": "scrivere · lui/lei · presente",
+    "answer": "scrive",
+    "distractors": ["scrivo", "scrivi", "scrivono"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:3s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-scrivere-1p",
+    "prompt": "scrivere · noi · presente",
+    "answer": "scriviamo",
+    "distractors": ["scrivete", "scrivono", "scrive"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:1p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-scrivere-2p",
+    "prompt": "scrivere · voi · presente",
+    "answer": "scrivete",
+    "distractors": ["scriviamo", "scrivono", "scrivi"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:2p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-scrivere-3p",
+    "prompt": "scrivere · loro · presente",
+    "answer": "scrivono",
+    "distractors": ["scrive", "scriviamo", "scrivete"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:3p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-leggere-1s",
+    "prompt": "leggere · io · presente",
+    "answer": "leggo",
+    "distractors": ["leggi", "legge", "leggono"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:1s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-leggere-2s",
+    "prompt": "leggere · tu · presente",
+    "answer": "leggi",
+    "distractors": ["leggo", "legge", "leggete"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:2s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-leggere-3s",
+    "prompt": "leggere · lui/lei · presente",
+    "answer": "legge",
+    "distractors": ["leggo", "leggi", "leggono"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:3s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-leggere-1p",
+    "prompt": "leggere · noi · presente",
+    "answer": "leggiamo",
+    "distractors": ["leggete", "leggono", "legge"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:1p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-leggere-2p",
+    "prompt": "leggere · voi · presente",
+    "answer": "leggete",
+    "distractors": ["leggiamo", "leggono", "leggi"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:2p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-leggere-3p",
+    "prompt": "leggere · loro · presente",
+    "answer": "leggono",
+    "distractors": ["legge", "leggiamo", "leggete"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:3p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-vedere-1s",
+    "prompt": "vedere · io · presente",
+    "answer": "vedo",
+    "distractors": ["vedi", "vede", "vedono"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:1s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-vedere-2s",
+    "prompt": "vedere · tu · presente",
+    "answer": "vedi",
+    "distractors": ["vedo", "vede", "vedete"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:2s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-vedere-3s",
+    "prompt": "vedere · lui/lei · presente",
+    "answer": "vede",
+    "distractors": ["vedo", "vedi", "vedono"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:3s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-vedere-1p",
+    "prompt": "vedere · noi · presente",
+    "answer": "vediamo",
+    "distractors": ["vedete", "vedono", "vede"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:1p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-vedere-2p",
+    "prompt": "vedere · voi · presente",
+    "answer": "vedete",
+    "distractors": ["vediamo", "vedono", "vedi"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:2p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-vedere-3p",
+    "prompt": "vedere · loro · presente",
+    "answer": "vedono",
+    "distractors": ["vede", "vediamo", "vedete"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:regular", "person:3p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-rimanere-1s",
+    "prompt": "rimanere · io · presente",
+    "answer": "rimango",
+    "distractors": ["rimani", "rimane", "rimangono"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:irregular", "person:1s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-rimanere-2s",
+    "prompt": "rimanere · tu · presente",
+    "answer": "rimani",
+    "distractors": ["rimango", "rimane", "rimanete"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:irregular", "person:2s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-rimanere-3s",
+    "prompt": "rimanere · lui/lei · presente",
+    "answer": "rimane",
+    "distractors": ["rimango", "rimani", "rimangono"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:irregular", "person:3s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-rimanere-1p",
+    "prompt": "rimanere · noi · presente",
+    "answer": "rimaniamo",
+    "distractors": ["rimanete", "rimangono", "rimane"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:irregular", "person:1p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-rimanere-2p",
+    "prompt": "rimanere · voi · presente",
+    "answer": "rimanete",
+    "distractors": ["rimaniamo", "rimangono", "rimani"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:irregular", "person:2p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-rimanere-3p",
+    "prompt": "rimanere · loro · presente",
+    "answer": "rimangono",
+    "distractors": ["rimane", "rimaniamo", "rimanete"],
+    "tags": ["mood:ind", "tense:pres", "class:-ere", "reg:irregular", "person:3p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-offrire-1s",
+    "prompt": "offrire · io · presente",
+    "answer": "offro",
+    "distractors": ["offri", "offre", "offrono"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:regular", "person:1s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-offrire-2s",
+    "prompt": "offrire · tu · presente",
+    "answer": "offri",
+    "distractors": ["offro", "offre", "offrite"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:regular", "person:2s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-offrire-3s",
+    "prompt": "offrire · lui/lei · presente",
+    "answer": "offre",
+    "distractors": ["offro", "offri", "offrono"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:regular", "person:3s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-offrire-1p",
+    "prompt": "offrire · noi · presente",
+    "answer": "offriamo",
+    "distractors": ["offrite", "offrono", "offre"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:regular", "person:1p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-offrire-2p",
+    "prompt": "offrire · voi · presente",
+    "answer": "offrite",
+    "distractors": ["offriamo", "offrono", "offri"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:regular", "person:2p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-offrire-3p",
+    "prompt": "offrire · loro · presente",
+    "answer": "offrono",
+    "distractors": ["offre", "offriamo", "offrite"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:regular", "person:3p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-soffrire-1s",
+    "prompt": "soffrire · io · presente",
+    "answer": "soffro",
+    "distractors": ["soffri", "soffre", "soffrono"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:regular", "person:1s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-soffrire-2s",
+    "prompt": "soffrire · tu · presente",
+    "answer": "soffri",
+    "distractors": ["soffro", "soffre", "soffrite"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:regular", "person:2s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-soffrire-3s",
+    "prompt": "soffrire · lui/lei · presente",
+    "answer": "soffre",
+    "distractors": ["soffro", "soffri", "soffrono"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:regular", "person:3s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-soffrire-1p",
+    "prompt": "soffrire · noi · presente",
+    "answer": "soffriamo",
+    "distractors": ["soffrite", "soffrono", "soffre"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:regular", "person:1p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-soffrire-2p",
+    "prompt": "soffrire · voi · presente",
+    "answer": "soffrite",
+    "distractors": ["soffriamo", "soffrono", "soffri"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:regular", "person:2p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-soffrire-3p",
+    "prompt": "soffrire · loro · presente",
+    "answer": "soffrono",
+    "distractors": ["soffre", "soffriamo", "soffrite"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:regular", "person:3p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-cucire-1s",
+    "prompt": "cucire · io · presente",
+    "answer": "cucio",
+    "distractors": ["cuci", "cuce", "cuciono"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:regular", "person:1s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-cucire-2s",
+    "prompt": "cucire · tu · presente",
+    "answer": "cuci",
+    "distractors": ["cucio", "cuce", "cucite"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:regular", "person:2s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-cucire-3s",
+    "prompt": "cucire · lui/lei · presente",
+    "answer": "cuce",
+    "distractors": ["cucio", "cuci", "cuciono"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:regular", "person:3s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-cucire-1p",
+    "prompt": "cucire · noi · presente",
+    "answer": "cuciamo",
+    "distractors": ["cucite", "cuciono", "cuce"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:regular", "person:1p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-cucire-2p",
+    "prompt": "cucire · voi · presente",
+    "answer": "cucite",
+    "distractors": ["cuciamo", "cuciono", "cuci"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:regular", "person:2p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-cucire-3p",
+    "prompt": "cucire · loro · presente",
+    "answer": "cuciono",
+    "distractors": ["cuce", "cuciamo", "cucite"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:regular", "person:3p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-salire-1s",
+    "prompt": "salire · io · presente",
+    "answer": "salgo",
+    "distractors": ["sali", "sale", "salgono"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:irregular", "person:1s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-salire-2s",
+    "prompt": "salire · tu · presente",
+    "answer": "sali",
+    "distractors": ["salgo", "sale", "salite"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:irregular", "person:2s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-salire-3s",
+    "prompt": "salire · lui/lei · presente",
+    "answer": "sale",
+    "distractors": ["salgo", "sali", "salgono"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:irregular", "person:3s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-salire-1p",
+    "prompt": "salire · noi · presente",
+    "answer": "saliamo",
+    "distractors": ["salite", "salgono", "sale"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:irregular", "person:1p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-salire-2p",
+    "prompt": "salire · voi · presente",
+    "answer": "salite",
+    "distractors": ["saliamo", "salgono", "sali"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:irregular", "person:2p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-salire-3p",
+    "prompt": "salire · loro · presente",
+    "answer": "salgono",
+    "distractors": ["sale", "saliamo", "salite"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:irregular", "person:3p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-venire-1s",
+    "prompt": "venire · io · presente",
+    "answer": "vengo",
+    "distractors": ["vieni", "viene", "vengono"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:irregular", "person:1s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-venire-2s",
+    "prompt": "venire · tu · presente",
+    "answer": "vieni",
+    "distractors": ["vengo", "viene", "venite"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:irregular", "person:2s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-venire-3s",
+    "prompt": "venire · lui/lei · presente",
+    "answer": "viene",
+    "distractors": ["vengo", "vieni", "vengono"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:irregular", "person:3s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-venire-1p",
+    "prompt": "venire · noi · presente",
+    "answer": "veniamo",
+    "distractors": ["venite", "vengono", "viene"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:irregular", "person:1p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-venire-2p",
+    "prompt": "venire · voi · presente",
+    "answer": "venite",
+    "distractors": ["veniamo", "vengono", "vieni"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:irregular", "person:2p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-venire-3p",
+    "prompt": "venire · loro · presente",
+    "answer": "vengono",
+    "distractors": ["viene", "veniamo", "venite"],
+    "tags": ["mood:ind", "tense:pres", "class:-ire", "reg:irregular", "person:3p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-spedire-1s",
+    "prompt": "spedire · io · presente",
+    "answer": "spedisco",
+    "distractors": ["spedisci", "spedisce", "spediscono"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:1s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-spedire-2s",
+    "prompt": "spedire · tu · presente",
+    "answer": "spedisci",
+    "distractors": ["spedisco", "spedisce", "spedite"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:2s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-spedire-3s",
+    "prompt": "spedire · lui/lei · presente",
+    "answer": "spedisce",
+    "distractors": ["spedisco", "spedisci", "spediscono"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:3s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-spedire-1p",
+    "prompt": "spedire · noi · presente",
+    "answer": "spediamo",
+    "distractors": ["spedisciamo", "spediscono", "spedisce"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:1p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-spedire-2p",
+    "prompt": "spedire · voi · presente",
+    "answer": "spedite",
+    "distractors": ["spediscite", "spediscono", "spedisci"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:2p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-spedire-3p",
+    "prompt": "spedire · loro · presente",
+    "answer": "spediscono",
+    "distractors": ["spedisce", "spediamo", "spedite"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:3p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-unire-1s",
+    "prompt": "unire · io · presente",
+    "answer": "unisco",
+    "distractors": ["unisci", "unisce", "uniscono"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:1s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-unire-2s",
+    "prompt": "unire · tu · presente",
+    "answer": "unisci",
+    "distractors": ["unisco", "unisce", "unite"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:2s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-unire-3s",
+    "prompt": "unire · lui/lei · presente",
+    "answer": "unisce",
+    "distractors": ["unisco", "unisci", "uniscono"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:3s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-unire-1p",
+    "prompt": "unire · noi · presente",
+    "answer": "uniamo",
+    "distractors": ["unisciamo", "uniscono", "unisce"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:1p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-unire-2p",
+    "prompt": "unire · voi · presente",
+    "answer": "unite",
+    "distractors": ["uniscite", "uniscono", "unisci"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:2p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-unire-3p",
+    "prompt": "unire · loro · presente",
+    "answer": "uniscono",
+    "distractors": ["unisce", "uniamo", "unite"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:3p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-colpire-1s",
+    "prompt": "colpire · io · presente",
+    "answer": "colpisco",
+    "distractors": ["colpisci", "colpisce", "colpiscono"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:1s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-colpire-2s",
+    "prompt": "colpire · tu · presente",
+    "answer": "colpisci",
+    "distractors": ["colpisco", "colpisce", "colpite"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:2s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-colpire-3s",
+    "prompt": "colpire · lui/lei · presente",
+    "answer": "colpisce",
+    "distractors": ["colpisco", "colpisci", "colpiscono"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:3s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-colpire-1p",
+    "prompt": "colpire · noi · presente",
+    "answer": "colpiamo",
+    "distractors": ["colpisciamo", "colpiscono", "colpisce"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:1p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-colpire-2p",
+    "prompt": "colpire · voi · presente",
+    "answer": "colpite",
+    "distractors": ["colpiscite", "colpiscono", "colpisci"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:2p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-colpire-3p",
+    "prompt": "colpire · loro · presente",
+    "answer": "colpiscono",
+    "distractors": ["colpisce", "colpiamo", "colpite"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:3p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-guarire-1s",
+    "prompt": "guarire · io · presente",
+    "answer": "guarisco",
+    "distractors": ["guarisci", "guarisce", "guariscono"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:1s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-guarire-2s",
+    "prompt": "guarire · tu · presente",
+    "answer": "guarisci",
+    "distractors": ["guarisco", "guarisce", "guarite"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:2s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-guarire-3s",
+    "prompt": "guarire · lui/lei · presente",
+    "answer": "guarisce",
+    "distractors": ["guarisco", "guarisci", "guariscono"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:3s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-guarire-1p",
+    "prompt": "guarire · noi · presente",
+    "answer": "guariamo",
+    "distractors": ["guarisciamo", "guariscono", "guarisce"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:1p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-guarire-2p",
+    "prompt": "guarire · voi · presente",
+    "answer": "guarite",
+    "distractors": ["guariscite", "guariscono", "guarisci"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:2p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-guarire-3p",
+    "prompt": "guarire · loro · presente",
+    "answer": "guariscono",
+    "distractors": ["guarisce", "guariamo", "guarite"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:3p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-agire-1s",
+    "prompt": "agire · io · presente",
+    "answer": "agisco",
+    "distractors": ["agisci", "agisce", "agiscono"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:1s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-agire-2s",
+    "prompt": "agire · tu · presente",
+    "answer": "agisci",
+    "distractors": ["agisco", "agisce", "agite"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:2s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-agire-3s",
+    "prompt": "agire · lui/lei · presente",
+    "answer": "agisce",
+    "distractors": ["agisco", "agisci", "agiscono"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:3s", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-agire-1p",
+    "prompt": "agire · noi · presente",
+    "answer": "agiamo",
+    "distractors": ["agisciamo", "agiscono", "agisce"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:1p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-agire-2p",
+    "prompt": "agire · voi · presente",
+    "answer": "agite",
+    "distractors": ["agiscite", "agiscono", "agisci"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:2p", "refl:no", "cefr:a1"]
+  },
+  {
+    "id": "verbi-pres-agire-3p",
+    "prompt": "agire · loro · presente",
+    "answer": "agiscono",
+    "distractors": ["agisce", "agiamo", "agite"],
+    "tags": ["mood:ind", "tense:pres", "class:-isc", "reg:regular", "person:3p", "refl:no", "cefr:a1"]
   }
 ]

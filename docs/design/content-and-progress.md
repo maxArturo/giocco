@@ -50,7 +50,7 @@ player filters by. **A fact is one or the other, never both.**
 | | `refl` | `yes`, `no` | deliberately imbalanced ~1:20 |
 | | `cefr` | `a1` (+`a2` when authored) | |
 | `nomi-plurale` | `gender` | `m`, `f`, `m/f` | |
-| | `plural` | only the patterns with five nouns | |
+| | `plural` | only the patterns with ten nouns | |
 | | `irreg` | `none`, `plural`, `gender-change` | |
 | | `cefr` | `a1` (+`a2` when authored) | |
 
@@ -65,7 +65,7 @@ Rules that keep the table honest:
   (`a1…b2`) — the same axis twice, doubling the ≥5 obligation. `cefr` is the survivor, and the
   word "level" now means a **Preset** in conversation.
 - **`reg` has three values.** `irregular-stem` vs `irregular-all` is a distinction no player
-  toggles and one you would have to get right 120 times.
+  toggles and one you would have to get right 240 times.
 - **`aux` does not exist here.** Auxiliary choice only shows up in compound tenses and
   `tense:pres` has none; it returns as a Dimension when `pass-pross` Items exist.
 - **`frequency_rank` is not shipped.** Frequency lists are used to choose which words are worth
@@ -143,10 +143,10 @@ third-party attribution obligation in `content/`.
 
 v0.1 targets:
 
-- **Verbs: 20 lexemes × 6 persons = 120 Items**, chosen to satisfy the ≥5 rule: at least five
-  verbs in every `class`, at least five `refl:yes`, at least five `reg:irregular`, and five
-  Items inside every **Preset** you intend to ship.
-- **Nouns: ~60 Items**, *chosen* so that every declared `plural` pattern has five nouns. The
+- **Verbs: 40 lexemes × 6 persons = 240 Items**, chosen to satisfy the ≥5 rule: ten verbs in
+  every `class`, two `refl:yes` lexemes, seven `reg:irregular`, and five Items inside every
+  **Preset** you intend to ship.
+- **Nouns: 130 Items**, *chosen* so that every declared `plural` pattern has ten nouns. The
   taxonomy follows the words you can name, not the other way round: `-cia/-cie` and `-gia/-gie`
   are rare, so they arrive with their nouns or not at all.
 - **`cefr`: `a1` only** until `a2` Items exist. Declaring `b1`/`b2` now would be dead toggles.

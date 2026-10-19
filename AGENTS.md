@@ -81,7 +81,7 @@ route's chrome: a single back control to `#/` plus the empty node a Game draws i
 `js/lib/roundLoop.js` (the shared question cycle a Game opts into — ask → feedback/self-grade →
 advance → summary, plus its teardown) and `js/lib/charts.js` (the two dependency-free inline-SVG
 chart helpers a Game's own statistics view draws with) exist, and `content/verbi-presente.json`
-(the hand-authored verb corpus: 20 lexemes × six persons = 120 Items) now ships.
+(the hand-authored verb corpus: 40 lexemes × six persons = 240 Items) now ships.
 `js/games/verbi-presente/index.js` plays a real round (US-013): a weighted draw of
 `min(chosen count, pool.length)` distinct Items, each asked with its own answer plus its three
 authored distractors in a shuffled four-option set, handed to `roundLoop()` in `choice` mode.
@@ -105,7 +105,7 @@ action beside Play again and Done, and the four statistics sections are computed
 store and the whole verb corpus alone.
 `nomi-plurale` declares its own `content`, `fields`, the four noun `dims` (`gender`, `plural`,
 `irreg`, `cefr`) and the three noun `presets` (US-015), so `content/nomi-plurale.json` — the
-hand-authored noun corpus, 13 plural patterns × five nouns = 65 Items — is gated against it, and
+hand-authored noun corpus, 13 plural patterns × ten nouns = 130 Items — is gated against it, and
 its `play()` now plays a real choice round (US-016): the same shared choice interaction as
 `verbi-presente`, whose draw policy it imports (`roundQueue`/`shuffle`/`roundCount`)
 with its own `questionFor` for the noun Item shape, mastery read from its own store. Since US-019

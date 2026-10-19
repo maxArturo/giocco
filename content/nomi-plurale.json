@@ -242,7 +242,7 @@
     "prompt": "la fatica → le ___",
     "answer": "fatiche",
     "distractors": ["fatice", "fatica", "fatichi"],
-    "tags": ["gender:f", "plural:-ga/-ghe", "irreg:none", "cefr:a1"]
+    "tags": ["gender:f", "plural:-ca/-che", "irreg:none", "cefr:a1"]
   },
   {
     "id": "nomi-pl-camicia",
@@ -452,6 +452,461 @@
     "prompt": "il tempio → i ___",
     "answer": "templi",
     "distractors": ["tempii", "tempie", "tempio"],
+    "tags": ["gender:m", "plural:irregolare", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-treno",
+    "prompt": "il treno → i ___",
+    "answer": "treni",
+    "distractors": ["treno", "trene", "trena"],
+    "tags": ["gender:m", "plural:-o/-i", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-vino",
+    "prompt": "il vino → i ___",
+    "answer": "vini",
+    "distractors": ["vino", "vine", "vina"],
+    "tags": ["gender:m", "plural:-o/-i", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-vestito",
+    "prompt": "il vestito → i ___",
+    "answer": "vestiti",
+    "distractors": ["vestito", "vestite", "vestita"],
+    "tags": ["gender:m", "plural:-o/-i", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-fratello",
+    "prompt": "il fratello → i ___",
+    "answer": "fratelli",
+    "distractors": ["fratello", "fratelle", "fratella"],
+    "tags": ["gender:m", "plural:-o/-i", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-giorno",
+    "prompt": "il giorno → i ___",
+    "answer": "giorni",
+    "distractors": ["giorno", "giorne", "giorna"],
+    "tags": ["gender:m", "plural:-o/-i", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-scuola",
+    "prompt": "la scuola → le ___",
+    "answer": "scuole",
+    "distractors": ["scuola", "scuoli", "scuolo"],
+    "tags": ["gender:f", "plural:-a/-e", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-macchina",
+    "prompt": "la macchina → le ___",
+    "answer": "macchine",
+    "distractors": ["macchina", "macchini", "macchino"],
+    "tags": ["gender:f", "plural:-a/-e", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-strada",
+    "prompt": "la strada → le ___",
+    "answer": "strade",
+    "distractors": ["strada", "stradi", "strado"],
+    "tags": ["gender:f", "plural:-a/-e", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-borsa",
+    "prompt": "la borsa → le ___",
+    "answer": "borse",
+    "distractors": ["borsa", "borsi", "borso"],
+    "tags": ["gender:f", "plural:-a/-e", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-mela",
+    "prompt": "la mela → le ___",
+    "answer": "mele",
+    "distractors": ["mela", "meli", "melo"],
+    "tags": ["gender:f", "plural:-a/-e", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-fiore",
+    "prompt": "il fiore → i ___",
+    "answer": "fiori",
+    "distractors": ["fiore", "fiora", "fioro"],
+    "tags": ["gender:m", "plural:-e/-i", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-dottore",
+    "prompt": "il dottore → i ___",
+    "answer": "dottori",
+    "distractors": ["dottore", "dottora", "dottoro"],
+    "tags": ["gender:m", "plural:-e/-i", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-colore",
+    "prompt": "il colore → i ___",
+    "answer": "colori",
+    "distractors": ["colore", "colora", "coloro"],
+    "tags": ["gender:m", "plural:-e/-i", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-notte",
+    "prompt": "la notte → le ___",
+    "answer": "notti",
+    "distractors": ["notte", "notta", "notto"],
+    "tags": ["gender:f", "plural:-e/-i", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-voce",
+    "prompt": "la voce → le ___",
+    "answer": "voci",
+    "distractors": ["voce", "voca", "voco"],
+    "tags": ["gender:f", "plural:-e/-i", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-cuoco",
+    "prompt": "il cuoco → i ___",
+    "answer": "cuochi",
+    "distractors": ["cuoci", "cuoco", "cuoche"],
+    "tags": ["gender:m", "plural:-co/-chi", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-tacco",
+    "prompt": "il tacco → i ___",
+    "answer": "tacchi",
+    "distractors": ["tacci", "tacco", "tacche"],
+    "tags": ["gender:m", "plural:-co/-chi", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-sacco",
+    "prompt": "il sacco → i ___",
+    "answer": "sacchi",
+    "distractors": ["sacci", "sacco", "sacche"],
+    "tags": ["gender:m", "plural:-co/-chi", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-trucco",
+    "prompt": "il trucco → i ___",
+    "answer": "trucchi",
+    "distractors": ["trucci", "trucco", "trucche"],
+    "tags": ["gender:m", "plural:-co/-chi", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-blocco",
+    "prompt": "il blocco → i ___",
+    "answer": "blocchi",
+    "distractors": ["blocci", "blocco", "blocche"],
+    "tags": ["gender:m", "plural:-co/-chi", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-ago",
+    "prompt": "l'ago → gli ___",
+    "answer": "aghi",
+    "distractors": ["agi", "ago", "aghe"],
+    "tags": ["gender:m", "plural:-go/-ghi", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-drago",
+    "prompt": "il drago → i ___",
+    "answer": "draghi",
+    "distractors": ["dragi", "drago", "draghe"],
+    "tags": ["gender:m", "plural:-go/-ghi", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-borgo",
+    "prompt": "il borgo → i ___",
+    "answer": "borghi",
+    "distractors": ["borgi", "borgo", "borghe"],
+    "tags": ["gender:m", "plural:-go/-ghi", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-catalogo",
+    "prompt": "il catalogo → i ___",
+    "answer": "cataloghi",
+    "distractors": ["catalogi", "catalogo", "cataloghe"],
+    "tags": ["gender:m", "plural:-go/-ghi", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-obbligo",
+    "prompt": "l'obbligo → gli ___",
+    "answer": "obblighi",
+    "distractors": ["obbligi", "obbligo", "obblighe"],
+    "tags": ["gender:m", "plural:-go/-ghi", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-barca",
+    "prompt": "la barca → le ___",
+    "answer": "barche",
+    "distractors": ["barce", "barca", "barchi"],
+    "tags": ["gender:f", "plural:-ca/-che", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-zucca",
+    "prompt": "la zucca → le ___",
+    "answer": "zucche",
+    "distractors": ["zucce", "zucca", "zucchi"],
+    "tags": ["gender:f", "plural:-ca/-che", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-panca",
+    "prompt": "la panca → le ___",
+    "answer": "panche",
+    "distractors": ["pance", "panca", "panchi"],
+    "tags": ["gender:f", "plural:-ca/-che", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-vacca",
+    "prompt": "la vacca → le ___",
+    "answer": "vacche",
+    "distractors": ["vacce", "vacca", "vacchi"],
+    "tags": ["gender:f", "plural:-ca/-che", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-droga",
+    "prompt": "la droga → le ___",
+    "answer": "droghe",
+    "distractors": ["droge", "droga", "droghi"],
+    "tags": ["gender:f", "plural:-ga/-ghe", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-piaga",
+    "prompt": "la piaga → le ___",
+    "answer": "piaghe",
+    "distractors": ["piage", "piaga", "piaghi"],
+    "tags": ["gender:f", "plural:-ga/-ghe", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-lega",
+    "prompt": "la lega → le ___",
+    "answer": "leghe",
+    "distractors": ["lege", "lega", "leghi"],
+    "tags": ["gender:f", "plural:-ga/-ghe", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-riga",
+    "prompt": "la riga → le ___",
+    "answer": "righe",
+    "distractors": ["rige", "riga", "righi"],
+    "tags": ["gender:f", "plural:-ga/-ghe", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-paga",
+    "prompt": "la paga → le ___",
+    "answer": "paghe",
+    "distractors": ["page", "paga", "paghi"],
+    "tags": ["gender:f", "plural:-ga/-ghe", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-ruga",
+    "prompt": "la ruga → le ___",
+    "answer": "rughe",
+    "distractors": ["ruge", "ruga", "rughi"],
+    "tags": ["gender:f", "plural:-ga/-ghe", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-griglia",
+    "prompt": "la griglia → le ___",
+    "answer": "griglie",
+    "distractors": ["grigle", "griglia", "grigli"],
+    "tags": ["gender:f", "plural:-cia/-gie", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-maglia",
+    "prompt": "la maglia → le ___",
+    "answer": "maglie",
+    "distractors": ["magle", "maglia", "magli"],
+    "tags": ["gender:f", "plural:-cia/-gie", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-voglia",
+    "prompt": "la voglia → le ___",
+    "answer": "voglie",
+    "distractors": ["vogle", "voglia", "vogli"],
+    "tags": ["gender:f", "plural:-cia/-gie", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-sveglia",
+    "prompt": "la sveglia → le ___",
+    "answer": "sveglie",
+    "distractors": ["svegle", "sveglia", "svegli"],
+    "tags": ["gender:f", "plural:-cia/-gie", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-caviglia",
+    "prompt": "la caviglia → le ___",
+    "answer": "caviglie",
+    "distractors": ["cavigle", "caviglia", "cavigli"],
+    "tags": ["gender:f", "plural:-cia/-gie", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-freccia",
+    "prompt": "la freccia → le ___",
+    "answer": "frecce",
+    "distractors": ["freccie", "freccia", "freci"],
+    "tags": ["gender:f", "plural:-cia/-ce", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-faccia",
+    "prompt": "la faccia → le ___",
+    "answer": "facce",
+    "distractors": ["faccie", "faccia", "facci"],
+    "tags": ["gender:f", "plural:-cia/-ce", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-caccia",
+    "prompt": "la caccia → le ___",
+    "answer": "cacce",
+    "distractors": ["caccie", "caccia", "cacci"],
+    "tags": ["gender:f", "plural:-cia/-ce", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-boccia",
+    "prompt": "la boccia → le ___",
+    "answer": "bocce",
+    "distractors": ["boccie", "boccia", "bocci"],
+    "tags": ["gender:f", "plural:-cia/-ce", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-guancia",
+    "prompt": "la guancia → le ___",
+    "answer": "guance",
+    "distractors": ["guancie", "guancia", "guanci"],
+    "tags": ["gender:f", "plural:-cia/-ce", "irreg:none", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-re",
+    "prompt": "il re → i ___",
+    "answer": "re",
+    "distractors": ["ri", "rei", "ree"],
+    "tags": ["gender:m", "plural:invariabile", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-taxi",
+    "prompt": "il taxi → i ___",
+    "answer": "taxi",
+    "distractors": ["taxis", "tassi", "taxe"],
+    "tags": ["gender:m", "plural:invariabile", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-computer",
+    "prompt": "il computer → i ___",
+    "answer": "computer",
+    "distractors": ["computers", "computere", "computeri"],
+    "tags": ["gender:m", "plural:invariabile", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-menu",
+    "prompt": "il menu → i ___",
+    "answer": "menu",
+    "distractors": ["menus", "meni", "mene"],
+    "tags": ["gender:m", "plural:invariabile", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-serie",
+    "prompt": "la serie → le ___",
+    "answer": "serie",
+    "distractors": ["seria", "seri", "series"],
+    "tags": ["gender:f", "plural:invariabile", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-grido",
+    "prompt": "il grido → le ___",
+    "answer": "grida",
+    "distractors": ["grido", "gride", "gridi"],
+    "tags": ["gender:m", "plural:-o/-a", "irreg:gender-change", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-urlo",
+    "prompt": "l'urlo → le ___",
+    "answer": "urla",
+    "distractors": ["urlo", "urle", "urli"],
+    "tags": ["gender:m", "plural:-o/-a", "irreg:gender-change", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-ginocchio",
+    "prompt": "il ginocchio → le ___",
+    "answer": "ginocchia",
+    "distractors": ["ginocchi", "ginocchie", "ginocchio"],
+    "tags": ["gender:m", "plural:-o/-a", "irreg:gender-change", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-lenzuolo",
+    "prompt": "il lenzuolo → le ___",
+    "answer": "lenzuola",
+    "distractors": ["lenzuoli", "lenzuole", "lenzuolo"],
+    "tags": ["gender:m", "plural:-o/-a", "irreg:gender-change", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-miglio",
+    "prompt": "il miglio → le ___",
+    "answer": "miglia",
+    "distractors": ["miglio", "miglie", "migli"],
+    "tags": ["gender:m", "plural:-o/-a", "irreg:gender-change", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-nemico",
+    "prompt": "il nemico → i ___",
+    "answer": "nemici",
+    "distractors": ["nemichi", "nemico", "nemiche"],
+    "tags": ["gender:m", "plural:-co/-ci", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-politico",
+    "prompt": "il politico → i ___",
+    "answer": "politici",
+    "distractors": ["politichi", "politico", "politiche"],
+    "tags": ["gender:m", "plural:-co/-ci", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-tecnico",
+    "prompt": "il tecnico → i ___",
+    "answer": "tecnici",
+    "distractors": ["tecnichi", "tecnico", "tecniche"],
+    "tags": ["gender:m", "plural:-co/-ci", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-comico",
+    "prompt": "il comico → i ___",
+    "answer": "comici",
+    "distractors": ["comichi", "comico", "comiche"],
+    "tags": ["gender:m", "plural:-co/-ci", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-fisico",
+    "prompt": "il fisico → i ___",
+    "answer": "fisici",
+    "distractors": ["fisichi", "fisico", "fisiche"],
+    "tags": ["gender:m", "plural:-co/-ci", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-ala",
+    "prompt": "l'ala → le ___",
+    "answer": "ali",
+    "distractors": ["ala", "ale", "alie"],
+    "tags": ["gender:f", "plural:irregolare", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-arma",
+    "prompt": "l'arma → le ___",
+    "answer": "armi",
+    "distractors": ["arma", "arme", "armie"],
+    "tags": ["gender:f", "plural:irregolare", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-eco",
+    "prompt": "l'eco → gli ___",
+    "answer": "echi",
+    "distractors": ["eco", "eci", "eche"],
+    "tags": ["gender:f", "plural:irregolare", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-zio",
+    "prompt": "lo zio → gli ___",
+    "answer": "zii",
+    "distractors": ["zio", "zi", "ziie"],
+    "tags": ["gender:m", "plural:irregolare", "irreg:plural", "cefr:a1"]
+  },
+  {
+    "id": "nomi-pl-addio",
+    "prompt": "l'addio → gli ___",
+    "answer": "addii",
+    "distractors": ["addio", "addi", "addie"],
     "tags": ["gender:m", "plural:irregolare", "irreg:plural", "cefr:a1"]
   }
 ]

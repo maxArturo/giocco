@@ -508,12 +508,12 @@ test('the two verb Games share one corpus and declare it identically', () => {
   assert.deepEqual(produce.presets, recognise.presets);
 
   const items = JSON.parse(readFileSync(fileURLToPath(new URL('../content/verbi-presente.json', import.meta.url)), 'utf8'));
-  assert.equal(items.length, 120, '20 lexemes × six persons');
+  assert.equal(items.length, 240, '40 lexemes × six persons');
   for (const item of items) assert.deepEqual(Object.keys(item), recognise.fields, `${item.id} carries exactly the declared fields`);
 
-  // 20 distinct lexemes, six persons each — the shape the ≥5 rule was authored against.
+  // 40 distinct lexemes, six persons each — the shape the ≥5 rule was authored against.
   const lexemes = new Set(items.map((item) => item.id.replace(/^verbi-pres-/, '').replace(/-[0-9][sp]$/, '')));
-  assert.equal(lexemes.size, 20);
+  assert.equal(lexemes.size, 40);
   for (const lexeme of lexemes) {
     const persons = items.filter((item) => item.id.startsWith(`verbi-pres-${lexeme}-`)).map((item) => item.tags.find((tag) => tag.startsWith('person:')));
     assert.deepEqual([...persons].sort(), ['person:1p', 'person:1s', 'person:2p', 'person:2s', 'person:3p', 'person:3s']);
@@ -540,7 +540,7 @@ test('the noun Game declares a corpus that fills every declared value', () => {
   ]);
 
   const items = JSON.parse(readFileSync(fileURLToPath(new URL('../content/nomi-plurale.json', import.meta.url)), 'utf8'));
-  assert.equal(items.length, 65, 'thirteen plural patterns × five nouns');
+  assert.equal(items.length, 130, 'thirteen plural patterns × ten nouns');
   for (const noun of items) assert.deepEqual(Object.keys(noun), game.fields, `${noun.id} carries exactly the declared fields`);
   assert.equal(new Set(items.map((noun) => noun.id)).size, items.length, 'ids are unique');
   assert.equal(new Set(items.map((noun) => noun.prompt)).size, items.length, 'no two Items share a prompt');
@@ -550,15 +550,15 @@ test('the noun Game declares a corpus that fills every declared value', () => {
     for (const value of values) assert.ok(count(`${dim}:${value}`) >= 5, `${dim}:${value} ships at least five Items`);
   }
 
-  // Each plural pattern is one hand-authored group of five: the corpus is sized by the rule, not
+  // Each plural pattern is one hand-authored group of ten: the corpus is sized by the rule, not
   // padded until the gate stops complaining.
   const patterns = /** @type {any} */ (game.dims.find((entry) => entry.dim === 'plural')).values;
   assert.equal(patterns.length, 13);
-  for (const pattern of patterns) assert.equal(count(`plural:${pattern}`), 5, `plural:${pattern} is five nouns`);
+  for (const pattern of patterns) assert.equal(count(`plural:${pattern}`), 10, `plural:${pattern} is ten nouns`);
 
-  // The two irregular presets are the split the corpus is built on: 45 regular, 20 irregular.
-  assert.equal(count('irreg:none'), 45);
-  assert.equal(count('irreg:plural') + count('irreg:gender-change'), 20);
+  // The two irregular presets are the split the corpus is built on: 90 regular, 40 irregular.
+  assert.equal(count('irreg:none'), 90);
+  assert.equal(count('irreg:plural') + count('irreg:gender-change'), 40);
   assert.equal(count('cefr:a1'), items.length, 'cefr:a1 is the only CEFR value authored');
 
   // The house rules § C asks for, each with the nouns it names: hard `-co/-go` (`alberghi`) next
@@ -2525,7 +2525,7 @@ test('each question offers its own answer plus its three authored distractors', 
     assert.deepEqual([...asked.options].sort(), [item.answer, ...item.distractors].sort(), `${item.id} offers its own four`);
     if (asked.options[0] === item.answer) firstRowIsAnswer += 1;
   }
-  assert.ok(firstRowIsAnswer >= 12 && firstRowIsAnswer <= 60, `the answer started in row one ${firstRowIsAnswer}/120 times`);
+  assert.ok(firstRowIsAnswer >= 24 && firstRowIsAnswer <= 120, `the answer started in row one ${firstRowIsAnswer}/240 times`);
 });
 
 test('the verb Game plays a choice round of the chosen length, judged in the loop', () => {
@@ -3495,7 +3495,7 @@ test('each noun question offers its own answer plus its three authored distracto
     assert.deepEqual([...asked.options].sort(), [item.answer, ...item.distractors].sort(), `${item.id} offers its own four`);
     if (asked.options[0] === item.answer) firstRowIsAnswer += 1;
   }
-  assert.ok(firstRowIsAnswer >= 6 && firstRowIsAnswer <= 33, `the answer started in row one ${firstRowIsAnswer}/65 times`);
+  assert.ok(firstRowIsAnswer >= 12 && firstRowIsAnswer <= 66, `the answer started in row one ${firstRowIsAnswer}/130 times`);
 });
 
 test('the noun Game plays a choice round of the chosen length, judged in the loop', () => {
